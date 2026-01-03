@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeployKit Pro - 企业级智能部署平台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0f1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2234;
+            --bg-hover: #243044;
+            --border-color: #2d3a4f;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --accent-cyan: #22d3ee;
+            --accent-purple: #a78bfa;
+            --accent-blue: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* 头部 */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        /* 主布局 */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 65px);
+        }
+
+        .deploy-panel {
+            flex: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+            transition: margin-right 0.3s ease;
+        }
+
+        .deploy-panel.ai-open {
+            margin-right: 400px;
+        }
+
+        /* AI 面板 */
+        .ai-panel {
+            position: fixed;
+            right: -400px;
+            top: 65px;
+            width: 400px;
+            height: calc(100vh - 65px);
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: right 0.3s ease;
+            z-index: 100;
+        }
+
+        .ai-panel.open {
+            right: 0;
+        }
+
+        .ai-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .ai-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent-purple);
+        }
+
+        .ai-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .ai-input-area {
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .ai-input-wrapper {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .ai-input {
+            flex: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            resize: none;
+        }
+
+        .ai-input:focus {
+            outline: none;
+            border-color: var(--accent-purple);
+        }
+
+        .ai-quick-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .quick-action-btn {
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-action-btn:hover {
+            background: var(--bg-hover);
+            color: var(--accent-purple);
+            border-color: var(--accent-purple);
+        }
+
+        /* 消息样式 */
+        .message {
+            margin-bottom: 1rem;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            text-align: right;
+        }
+
+        .message-content {
+            display: inline-block;
+            max-width: 85%;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            text-align: left;
+        }
+
+        .message.user .message-content {
+            background: var(--accent-purple);
+            color: white;
+        }
+
+        .message.assistant .message-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+        }
+
+        .message.tool .message-content {
+            background: var(--bg-hover);
+            border-left: 3px solid var(--accent-cyan);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+
+        /* 卡片样式 */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* 平台选择器 */
+        .platform-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .platform-item {
+            padding: 1rem 0.5rem;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .platform-item:hover {
+            border-color: var(--accent-cyan);
+            background: var(--bg-hover);
+        }
+
+        .platform-item.selected {
+            border-color: var(--accent-cyan);
+            background: rgba(34, 211, 238, 0.1);
+        }
+
+        .platform-icon {
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .platform-name {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* 表单样式 */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+        }
+
+        .form-select {
+            cursor: pointer;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        /* 按钮样式 */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(34, 211, 238, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        .btn-ai {
+            background: linear-gradient(135deg, var(--accent-purple), #7c3aed);
+            color: white;
+        }
+
+        .btn-ai:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(167, 139, 250, 0.3);
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+        }
+
+        .btn-icon {
+            padding: 0.5rem;
+            background: transparent;
+            color: var(--text-secondary);
+        }
+
+        .btn-icon:hover {
+            color: var(--text-primary);
+            background: var(--bg-hover);
+        }
+
+        /* 文件上传区 */
+        .upload-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--accent-cyan);
+            background: rgba(34, 211, 238, 0.05);
+        }
+
+        .upload-zone.has-file {
+            border-color: var(--success);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .upload-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .upload-text {
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .upload-file-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            color: var(--success);
+        }
+
+        /* 日志面板 */
+        .log-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            height: 300px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .log-header {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .log-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+
+        .log-line {
+            margin-bottom: 0.25rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .log-time {
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .log-line.info { color: var(--text-secondary); }
+        .log-line.success { color: var(--success); }
+        .log-line.warning { color: var(--warning); }
+        .log-line.error { color: var(--error); }
+        .log-line.command { color: var(--accent-cyan); }
+
+        /* 服务器配置列表 */
+        .server-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .server-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .server-item:hover {
+            border-color: var(--accent-cyan);
+        }
+
+        .server-item.selected {
+            border-color: var(--accent-cyan);
+            background: rgba(34, 211, 238, 0.1);
+        }
+
+        .server-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .server-icon {
+            font-size: 1.25rem;
+        }
+
+        .server-name {
+            font-weight: 500;
+        }
+
+        .server-host {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .server-actions {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        /* 模态框 */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+
+        .modal-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+        }
+
+        .modal-overlay.open .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+
+        /* 状态指示器 */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.online { background: var(--success); }
+        .status-dot.offline { background: var(--error); }
+        .status-dot.pending { background: var(--warning); }
+
+        /* 加载动画 */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 进度条 */
+        .progress-bar {
+            height: 4px;
+            background: var(--bg-hover);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+            transition: width 0.3s;
+        }
+
+        /* 标签 */
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            background: var(--bg-hover);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .tag.success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .tag.warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .tag.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .deploy-panel.ai-open {
+                margin-right: 0;
+            }
+
+            .ai-panel {
+                width: 100%;
+                right: -100%;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .platform-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* 隐藏的文件输入 */
+        .hidden-input {
+            display: none;
+        }
+
+        /* 结果展示 */
+        .deploy-result {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .deploy-result.success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--success);
+        }
+
+        .deploy-result.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error);
+        }
+
+        .result-url {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .result-url a {
+            color: var(--accent-cyan);
+            text-decoration: none;
+        }
+
+        .result-url a:hover {
+            text-decoration: underline;
+        }
+
+        /* 部署配置显示/隐藏 */
+        .deploy-config {
+            display: none;
+        }
+
+        .deploy-config.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- 头部 -->
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">🚀</div>
+            <span class="logo-text">DeployKit Pro</span>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-secondary btn-sm" onclick="openServerModal()">
+                ➕ 添加服务器
+            </button>
+            <button class="btn btn-ai btn-sm" onclick="toggleAiPanel()">
+                🤖 AI 助手
+            </button>
+        </div>
+    </header>
+
+    <!-- 主容器 -->
+    <div class="main-container">
+        <!-- 部署面板 -->
+        <div class="deploy-panel" id="deployPanel">
+            <!-- 平台选择 -->
+            <div class="card">
+                <div class="card-title">📦 选择部署平台</div>
+                <div class="platform-grid" id="platformGrid">
+                    <!-- 平台列表由 JS 动态生成 -->
+                </div>
+            </div>
+
+            <!-- 服务器/配置选择 -->
+            <div class="card" id="serverSelectCard">
+                <div class="card-title">
+                    🖥️ 选择配置
+                    <button class="btn btn-secondary btn-sm" style="margin-left: auto;" onclick="openServerModal()">
+                        添加新配置
+                    </button>
+                </div>
+                <div class="server-list" id="serverList">
+                    <div style="color: var(--text-muted); text-align: center; padding: 2rem;">
+                        请先选择部署平台
+                    </div>
+                </div>
+            </div>
+
+            <!-- 部署配置 -->
+            <div class="card deploy-config" id="deployConfigCard">
+                <div class="card-title">⚙️ 部署配置</div>
+                <form id="deployForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">项目名称 *</label>
+                            <input type="text" class="form-input" id="projectName" placeholder="my-project" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">项目类型 *</label>
+                            <select class="form-select" id="projectType">
+                                <option value="static">静态网站</option>
+                                <option value="vue">Vue.js</option>
+                                <option value="react">React</option>
+                                <option value="node">Node.js</option>
+                                <option value="java">Java</option>
+                                <option value="python">Python</option>
+                                <option value="custom">自定义</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row" id="sshConfigRow">
+                        <div class="form-group">
+                            <label class="form-label">部署路径 *</label>
+                            <input type="text" class="form-input" id="deployPath" placeholder="/www/myproject">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">应用端口</label>
+                            <input type="number" class="form-input" id="appPort" placeholder="80">
+                        </div>
+                    </div>
+
+                    <!-- 文件上传 -->
+                    <div class="form-group">
+                        <label class="form-label">上传项目 (ZIP)</label>
+                        <div class="upload-zone" id="uploadZone">
+                            <div class="upload-icon">📁</div>
+                            <div class="upload-text">拖拽 ZIP 文件到这里，或点击选择</div>
+                            <div class="upload-hint">支持最大 100MB 的 ZIP 压缩包</div>
+                        </div>
+                        <input type="file" class="hidden-input" id="fileInput" accept=".zip">
+                    </div>
+
+                    <!-- 部署按钮 -->
+                    <button type="submit" class="btn btn-primary" id="deployBtn" style="width: 100%;" disabled>
+                        🚀 开始部署
+                    </button>
+                </form>
+            </div>
+
+            <!-- 部署日志 -->
+            <div class="card">
+                <div class="card-title">📋 部署日志</div>
+                <div class="log-panel">
+                    <div class="log-header">
+                        <span id="logStatus">等待部署...</span>
+                        <button class="btn btn-icon btn-sm" onclick="clearLogs()">🗑️</button>
+                    </div>
+                    <div class="log-content" id="logContent">
+                        <div class="log-line info">
+                            <span class="log-time">[--:--:--]</span>
+                            <span>准备就绪，等待部署任务...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 部署结果 -->
+                <div class="deploy-result success" id="deployResult" style="display: none;">
+                    <strong>🎉 部署成功！</strong>
+                    <div class="result-url">
+                        <span>访问地址：</span>
+                        <a href="#" id="resultUrl" target="_blank"></a>
+                        <button class="btn btn-icon btn-sm" onclick="copyUrl()">📋</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI 助手面板 -->
+        <div class="ai-panel" id="aiPanel">
+            <div class="ai-header">
+                <div class="ai-title">
+                    <span>🤖</span>
+                    <span>AI 部署助手</span>
+                </div>
+                <button class="btn btn-icon" onclick="toggleAiPanel()">✕</button>
+            </div>
+            <div class="ai-messages" id="aiMessages">
+                <div class="message assistant">
+                    <div class="message-content">
+                        你好！我是 DeployKit Pro 的 AI 助手。<br><br>
+                        我可以帮你：<br>
+                        • 分析部署错误<br>
+                        • 修复项目配置<br>
+                        • 自动修复并重新部署<br><br>
+                        遇到问题时随时问我！
+                    </div>
+                </div>
+            </div>
+            <div class="ai-input-area">
+                <div class="ai-quick-actions">
+                    <button class="quick-action-btn" onclick="aiQuickAction('analyze')">🔍 分析错误</button>
+                    <button class="quick-action-btn" onclick="aiQuickAction('fix')">🔧 自动修复</button>
+                    <button class="quick-action-btn" onclick="aiQuickAction('redeploy')">🔄 重新部署</button>
+                </div>
+                <div class="ai-input-wrapper">
+                    <textarea class="ai-input" id="aiInput" placeholder="描述你的问题..." rows="2"></textarea>
+                    <button class="btn btn-ai btn-sm" onclick="sendAiMessage()">发送</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑服务器模态框 -->
+    <div class="modal-overlay" id="serverModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="serverModalTitle">添加服务器配置</span>
+                <button class="btn btn-icon" onclick="closeServerModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="serverForm">
+                    <input type="hidden" id="serverId">
+
+                    <div class="form-group">
+                        <label class="form-label">配置名称 *</label>
+                        <input type="text" class="form-input" id="serverName" placeholder="例如：生产服务器" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">平台类型 *</label>
+                        <select class="form-select" id="serverType" onchange="updateServerForm()">
+                            <option value="linux">Linux</option>
+                            <option value="windows">Windows Server</option>
+                            <option value="macos">macOS</option>
+                            <option value="docker">Docker</option>
+                            <option value="vercel">Vercel</option>
+                            <option value="netlify">Netlify</option>
+                            <option value="aliyun-oss">阿里云 OSS</option>
+                            <option value="tencent-cos">腾讯云 COS</option>
+                            <option value="aws-s3">AWS S3</option>
+                        </select>
+                    </div>
+
+                    <!-- SSH 配置 -->
+                    <div id="sshConfig">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">主机地址 *</label>
+                                <input type="text" class="form-input" id="sshHost" placeholder="192.168.1.100">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">端口</label>
+                                <input type="number" class="form-input" id="sshPort" placeholder="22" value="22">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">用户名 *</label>
+                            <input type="text" class="form-input" id="sshUsername" placeholder="root">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">认证方式</label>
+                            <select class="form-select" id="authType" onchange="toggleAuthField()">
+                                <option value="password">密码</option>
+                                <option value="privateKey">私钥</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="passwordGroup">
+                            <label class="form-label">密码</label>
+                            <input type="password" class="form-input" id="sshPassword" placeholder="输入密码">
+                        </div>
+                        <div class="form-group" id="privateKeyGroup" style="display: none;">
+                            <label class="form-label">私钥内容</label>
+                            <textarea class="form-textarea" id="sshPrivateKey" rows="4" placeholder="粘贴私钥内容..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- API Token 配置 (Vercel/Netlify) -->
+                    <div id="apiConfig" style="display: none;">
+                        <div class="form-group">
+                            <label class="form-label">API Token *</label>
+                            <input type="password" class="form-input" id="apiToken" placeholder="输入 API Token">
+                        </div>
+                        <div class="form-group" id="teamIdGroup">
+                            <label class="form-label">Team ID (可选)</label>
+                            <input type="text" class="form-input" id="teamId" placeholder="团队 ID">
+                        </div>
+                        <div class="form-group" id="siteIdGroup" style="display: none;">
+                            <label class="form-label">Site ID (可选)</label>
+                            <input type="text" class="form-input" id="siteId" placeholder="站点 ID">
+                        </div>
+                    </div>
+
+                    <!-- 云存储配置 (OSS/COS/S3) -->
+                    <div id="storageConfig" style="display: none;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label" id="accessKeyLabel">AccessKey ID *</label>
+                                <input type="text" class="form-input" id="accessKeyId" placeholder="AccessKey ID">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" id="secretKeyLabel">AccessKey Secret *</label>
+                                <input type="password" class="form-input" id="accessKeySecret" placeholder="AccessKey Secret">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Bucket *</label>
+                                <input type="text" class="form-input" id="bucket" placeholder="存储桶名称">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Region *</label>
+                                <input type="text" class="form-input" id="region" placeholder="例如：oss-cn-hangzhou">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">自定义域名 (可选)</label>
+                            <input type="text" class="form-input" id="customDomain" placeholder="www.example.com">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeServerModal()">取消</button>
+                <button class="btn btn-secondary" onclick="testServerConnection()">测试连接</button>
+                <button class="btn btn-primary" onclick="saveServer()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 状态管理 ====================
+        const state = {
+            socket: null,
+            socketId: null,
+            platforms: [],
+            servers: [],
+            selectedPlatform: null,
+            selectedServer: null,
+            uploadedFile: null,
+            projectId: null,
+            isDeploying: false,
+            aiMessages: []
+        };
+
+        // ==================== 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            initSocket();
+            loadPlatforms();
+            loadServers();
+            initUploadZone();
+            initDeployForm();
+            initAiInput();
+        });
+
+        // ==================== WebSocket ====================
+        function initSocket() {
+            state.socket = io();
+
+            state.socket.on('connect', () => {
+                state.socketId = state.socket.id;
+                console.log('WebSocket 已连接:', state.socketId);
+            });
+
+            state.socket.on('deploy:log', (log) => {
+                addLog(log);
+            });
+
+            state.socket.on('ai:progress', (data) => {
+                handleAiProgress(data);
+            });
+
+            state.socket.on('disconnect', () => {
+                console.log('WebSocket 已断开');
+            });
+        }
+
+        // ==================== 平台管理 ====================
+        async function loadPlatforms() {
+            try {
+                const res = await fetch('/api/platforms');
+                const data = await res.json();
+                if (data.success) {
+                    state.platforms = data.platforms;
+                    renderPlatforms();
+                }
+            } catch (error) {
+                console.error('加载平台失败:', error);
+            }
+        }
+
+        function renderPlatforms() {
+            const grid = document.getElementById('platformGrid');
+            grid.innerHTML = state.platforms.map(p => `
+                <div class="platform-item" data-type="${p.type}" onclick="selectPlatform('${p.type}')">
+                    <div class="platform-icon">${p.icon}</div>
+                    <div class="platform-name">${p.name}</div>
+                </div>
+            `).join('');
+        }
+
+        function selectPlatform(type) {
+            state.selectedPlatform = type;
+            state.selectedServer = null;
+
+            // 更新 UI
+            document.querySelectorAll('.platform-item').forEach(el => {
+                el.classList.toggle('selected', el.dataset.type === type);
+            });
+
+            // 加载该平台的服务器
+            renderServers();
+            updateDeployForm();
+        }
+
+        // ==================== 服务器管理 ====================
+        async function loadServers() {
+            try {
+                const res = await fetch('/api/servers');
+                const data = await res.json();
+                if (data.success) {
+                    state.servers = data.servers;
+                    renderServers();
+                }
+            } catch (error) {
+                console.error('加载服务器失败:', error);
+            }
+        }
+
+        function renderServers() {
+            const list = document.getElementById('serverList');
+
+            if (!state.selectedPlatform) {
+                list.innerHTML = `
+                    <div style="color: var(--text-muted); text-align: center; padding: 2rem;">
+                        请先选择部署平台
+                    </div>
+                `;
+                return;
+            }
+
+            const filtered = state.servers.filter(s => s.type === state.selectedPlatform);
+
+            if (filtered.length === 0) {
+                list.innerHTML = `
+                    <div style="color: var(--text-muted); text-align: center; padding: 2rem;">
+                        暂无配置，点击上方按钮添加
+                    </div>
+                `;
+                return;
+            }
+
+            const platform = state.platforms.find(p => p.type === state.selectedPlatform);
+
+            list.innerHTML = filtered.map(s => `
+                <div class="server-item ${state.selectedServer?.id === s.id ? 'selected' : ''}"
+                     onclick="selectServer('${s.id}')">
+                    <div class="server-info">
+                        <span class="server-icon">${platform?.icon || '🖥️'}</span>
+                        <div>
+                            <div class="server-name">${s.name}</div>
+                            <div class="server-host">${getServerDescription(s)}</div>
+                        </div>
+                    </div>
+                    <div class="server-actions">
+                        <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); editServer('${s.id}')">✏️</button>
+                        <button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); deleteServer('${s.id}')">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getServerDescription(server) {
+            switch (server.type) {
+                case 'linux':
+                case 'windows':
+                case 'macos':
+                case 'docker':
+                    return server.connection?.host || '未配置';
+                case 'vercel':
+                case 'netlify':
+                    return 'API 配置';
+                case 'aliyun-oss':
+                case 'tencent-cos':
+                case 'aws-s3':
+                    return server.connection?.bucket || '未配置';
+                default:
+                    return '';
+            }
+        }
+
+        function selectServer(id) {
+            state.selectedServer = state.servers.find(s => s.id === id);
+            renderServers();
+            updateDeployForm();
+            checkDeployReady();
+        }
+
+        // ==================== 服务器配置模态框 ====================
+        function openServerModal(serverId = null) {
+            const modal = document.getElementById('serverModal');
+            const title = document.getElementById('serverModalTitle');
+
+            if (serverId) {
+                const server = state.servers.find(s => s.id === serverId);
+                if (server) {
+                    title.textContent = '编辑服务器配置';
+                    fillServerForm(server);
+                }
+            } else {
+                title.textContent = '添加服务器配置';
+                resetServerForm();
+                if (state.selectedPlatform) {
+                    document.getElementById('serverType').value = state.selectedPlatform;
+                    updateServerForm();
+                }
+            }
+
+            modal.classList.add('open');
+        }
+
+        function closeServerModal() {
+            document.getElementById('serverModal').classList.remove('open');
+        }
+
+        function updateServerForm() {
+            const type = document.getElementById('serverType').value;
+
+            // 隐藏所有配置区域
+            document.getElementById('sshConfig').style.display = 'none';
+            document.getElementById('apiConfig').style.display = 'none';
+            document.getElementById('storageConfig').style.display = 'none';
+
+            // 根据类型显示对应配置
+            if (['linux', 'windows', 'macos', 'docker'].includes(type)) {
+                document.getElementById('sshConfig').style.display = 'block';
+            } else if (['vercel', 'netlify'].includes(type)) {
+                document.getElementById('apiConfig').style.display = 'block';
+                document.getElementById('teamIdGroup').style.display = type === 'vercel' ? 'block' : 'none';
+                document.getElementById('siteIdGroup').style.display = type === 'netlify' ? 'block' : 'none';
+            } else if (['aliyun-oss', 'tencent-cos', 'aws-s3'].includes(type)) {
+                document.getElementById('storageConfig').style.display = 'block';
+
+                // 更新标签
+                const labels = {
+                    'aliyun-oss': ['AccessKey ID', 'AccessKey Secret'],
+                    'tencent-cos': ['SecretId', 'SecretKey'],
+                    'aws-s3': ['Access Key ID', 'Secret Access Key']
+                };
+                document.getElementById('accessKeyLabel').textContent = labels[type][0] + ' *';
+                document.getElementById('secretKeyLabel').textContent = labels[type][1] + ' *';
+            }
+        }
+
+        function toggleAuthField() {
+            const authType = document.getElementById('authType').value;
+            document.getElementById('passwordGroup').style.display = authType === 'password' ? 'block' : 'none';
+            document.getElementById('privateKeyGroup').style.display = authType === 'privateKey' ? 'block' : 'none';
+        }
+
+        function fillServerForm(server) {
+            document.getElementById('serverId').value = server.id;
+            document.getElementById('serverName').value = server.name;
+            document.getElementById('serverType').value = server.type;
+            updateServerForm();
+
+            const conn = server.connection || {};
+
+            if (['linux', 'windows', 'macos', 'docker'].includes(server.type)) {
+                document.getElementById('sshHost').value = conn.host || '';
+                document.getElementById('sshPort').value = conn.port || 22;
+                document.getElementById('sshUsername').value = conn.username || '';
+                document.getElementById('authType').value = conn.authType || 'password';
+                toggleAuthField();
+            } else if (['vercel', 'netlify'].includes(server.type)) {
+                document.getElementById('apiToken').value = '';
+                document.getElementById('teamId').value = conn.teamId || '';
+                document.getElementById('siteId').value = conn.siteId || '';
+            } else if (['aliyun-oss', 'tencent-cos', 'aws-s3'].includes(server.type)) {
+                document.getElementById('accessKeyId').value = conn.accessKeyId || conn.secretId || '';
+                document.getElementById('accessKeySecret').value = '';
+                document.getElementById('bucket').value = conn.bucket || '';
+                document.getElementById('region').value = conn.region || '';
+                document.getElementById('customDomain').value = server.defaults?.customDomain || '';
+            }
+        }
+
+        function resetServerForm() {
+            document.getElementById('serverForm').reset();
+            document.getElementById('serverId').value = '';
+            updateServerForm();
+        }
+
+        async function saveServer() {
+            const id = document.getElementById('serverId').value;
+            const type = document.getElementById('serverType').value;
+
+            const data = {
+                name: document.getElementById('serverName').value,
+                type: type,
+                connection: {},
+                defaults: {}
+            };
+
+            // 根据类型收集数据
+            if (['linux', 'windows', 'macos', 'docker'].includes(type)) {
+                data.connection = {
+                    host: document.getElementById('sshHost').value,
+                    port: parseInt(document.getElementById('sshPort').value) || 22,
+                    username: document.getElementById('sshUsername').value,
+                    authType: document.getElementById('authType').value
+                };
+
+                if (data.connection.authType === 'password') {
+                    const pwd = document.getElementById('sshPassword').value;
+                    if (pwd) data.connection.password = pwd;
+                } else {
+                    const key = document.getElementById('sshPrivateKey').value;
+                    if (key) data.connection.privateKey = key;
+                }
+            } else if (['vercel', 'netlify'].includes(type)) {
+                const token = document.getElementById('apiToken').value;
+                if (token) data.connection.token = token;
+                data.connection.teamId = document.getElementById('teamId').value || undefined;
+                data.connection.siteId = document.getElementById('siteId').value || undefined;
+            } else if (['aliyun-oss', 'tencent-cos', 'aws-s3'].includes(type)) {
+                if (type === 'tencent-cos') {
+                    data.connection.secretId = document.getElementById('accessKeyId').value;
+                    const secret = document.getElementById('accessKeySecret').value;
+                    if (secret) data.connection.secretKey = secret;
+                } else if (type === 'aws-s3') {
+                    data.connection.accessKeyId = document.getElementById('accessKeyId').value;
+                    const secret = document.getElementById('accessKeySecret').value;
+                    if (secret) data.connection.secretAccessKey = secret;
+                } else {
+                    data.connection.accessKeyId = document.getElementById('accessKeyId').value;
+                    const secret = document.getElementById('accessKeySecret').value;
+                    if (secret) data.connection.accessKeySecret = secret;
+                }
+                data.connection.bucket = document.getElementById('bucket').value;
+                data.connection.region = document.getElementById('region').value;
+                data.defaults.customDomain = document.getElementById('customDomain').value || undefined;
+            }
+
+            try {
+                const url = id ? `/api/servers/${id}` : '/api/servers';
+                const method = id ? 'PUT' : 'POST';
+
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+                    closeServerModal();
+                    loadServers();
+                    addLog({ type: 'success', message: '服务器配置已保存' });
+                } else {
+                    alert('保存失败: ' + result.error);
+                }
+            } catch (error) {
+                alert('保存失败: ' + error.message);
+            }
+        }
+
+        async function testServerConnection() {
+            // 需要先保存才能测试
+            const id = document.getElementById('serverId').value;
+            if (!id) {
+                alert('请先保存配置后再测试连接');
+                return;
+            }
+
+            try {
+                addLog({ type: 'info', message: '正在测试连接...' });
+                const res = await fetch(`/api/servers/${id}/test`, { method: 'POST' });
+                const result = await res.json();
+
+                if (result.success) {
+                    addLog({ type: 'success', message: `连接成功: ${result.details || result.message}` });
+                    alert('连接成功！');
+                } else {
+                    addLog({ type: 'error', message: `连接失败: ${result.message}` });
+                    alert('连接失败: ' + result.message);
+                }
+            } catch (error) {
+                addLog({ type: 'error', message: `测试失败: ${error.message}` });
+                alert('测试失败: ' + error.message);
+            }
+        }
+
+        function editServer(id) {
+            openServerModal(id);
+        }
+
+        async function deleteServer(id) {
+            if (!confirm('确定要删除这个服务器配置吗？')) return;
+
+            try {
+                const res = await fetch(`/api/servers/${id}`, { method: 'DELETE' });
+                const result = await res.json();
+
+                if (result.success) {
+                    if (state.selectedServer?.id === id) {
+                        state.selectedServer = null;
+                    }
+                    loadServers();
+                    addLog({ type: 'success', message: '配置已删除' });
+                } else {
+                    alert('删除失败: ' + result.error);
+                }
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
+        }
+
+        // ==================== 部署表单 ====================
+        function updateDeployForm() {
+            const configCard = document.getElementById('deployConfigCard');
+            const sshRow = document.getElementById('sshConfigRow');
+
+            if (state.selectedServer) {
+                configCard.classList.add('show');
+
+                // 根据平台类型调整表单
+                const type = state.selectedServer.type;
+                if (['vercel', 'netlify', 'aliyun-oss', 'tencent-cos', 'aws-s3'].includes(type)) {
+                    sshRow.style.display = 'none';
+                } else {
+                    sshRow.style.display = 'grid';
+                    // 填充默认值
+                    if (state.selectedServer.defaults?.deployPath) {
+                        document.getElementById('deployPath').value = state.selectedServer.defaults.deployPath;
+                    }
+                }
+            } else {
+                configCard.classList.remove('show');
+            }
+        }
+
+        function initDeployForm() {
+            document.getElementById('deployForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await startDeploy();
+            });
+        }
+
+        function checkDeployReady() {
+            const btn = document.getElementById('deployBtn');
+            const ready = state.selectedServer && state.uploadedFile;
+            btn.disabled = !ready;
+        }
+
+        // ==================== 文件上传 ====================
+        function initUploadZone() {
+            const zone = document.getElementById('uploadZone');
+            const input = document.getElementById('fileInput');
+
+            zone.addEventListener('click', () => input.click());
+
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('dragover');
+            });
+
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('dragover');
+            });
+
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file) handleFileSelect(file);
+            });
+
+            input.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) handleFileSelect(file);
+            });
+        }
+
+        function handleFileSelect(file) {
+            if (!file.name.endsWith('.zip')) {
+                alert('请上传 ZIP 文件');
+                return;
+            }
+
+            state.uploadedFile = file;
+
+            const zone = document.getElementById('uploadZone');
+            zone.classList.add('has-file');
+            zone.innerHTML = `
+                <div class="upload-file-info">
+                    <span>📦</span>
+                    <span>${file.name}</span>
+                    <span>(${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                </div>
+            `;
+
+            checkDeployReady();
+            addLog({ type: 'success', message: `文件已选择: ${file.name}` });
+        }
+
+        // ==================== 部署 ====================
+        async function startDeploy() {
+            if (state.isDeploying) return;
+            if (!state.selectedServer || !state.uploadedFile) {
+                alert('请选择服务器并上传项目文件');
+                return;
+            }
+
+            state.isDeploying = true;
+            const btn = document.getElementById('deployBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner"></div> 部署中...';
+
+            // 隐藏之前的结果
+            document.getElementById('deployResult').style.display = 'none';
+
+            // 清空日志
+            clearLogs();
+            document.getElementById('logStatus').textContent = '部署中...';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', state.uploadedFile);
+                formData.append('serverId', state.selectedServer.id);
+                formData.append('projectName', document.getElementById('projectName').value);
+                formData.append('projectType', document.getElementById('projectType').value);
+                formData.append('socketId', state.socketId);
+
+                const deployPath = document.getElementById('deployPath').value;
+                if (deployPath) formData.append('deployPath', deployPath);
+
+                const appPort = document.getElementById('appPort').value;
+                if (appPort) formData.append('appPort', appPort);
+
+                // 如果有已存在的项目 ID（AI 修改过的）
+                if (state.projectId) {
+                    formData.append('projectId', state.projectId);
+                }
+
+                const res = await fetch('/api/deploy', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+                    state.projectId = result.projectId;
+                    showDeployResult(true, result.url);
+                    document.getElementById('logStatus').textContent = '部署成功';
+                } else {
+                    showDeployResult(false, result.error);
+                    document.getElementById('logStatus').textContent = '部署失败';
+                }
+            } catch (error) {
+                showDeployResult(false, error.message);
+                document.getElementById('logStatus').textContent = '部署失败';
+            } finally {
+                state.isDeploying = false;
+                btn.disabled = false;
+                btn.innerHTML = '🚀 开始部署';
+                checkDeployReady();
+            }
+        }
+
+        function showDeployResult(success, urlOrError) {
+            const resultDiv = document.getElementById('deployResult');
+            const urlEl = document.getElementById('resultUrl');
+
+            resultDiv.style.display = 'block';
+
+            if (success) {
+                resultDiv.className = 'deploy-result success';
+                resultDiv.innerHTML = `
+                    <strong>🎉 部署成功！</strong>
+                    <div class="result-url">
+                        <span>访问地址：</span>
+                        <a href="${urlOrError}" target="_blank">${urlOrError}</a>
+                        <button class="btn btn-icon btn-sm" onclick="copyUrl('${urlOrError}')">📋</button>
+                    </div>
+                `;
+            } else {
+                resultDiv.className = 'deploy-result error';
+                resultDiv.innerHTML = `
+                    <strong>❌ 部署失败</strong>
+                    <p style="margin-top: 0.5rem; color: var(--text-secondary);">${urlOrError}</p>
+                    <button class="btn btn-ai btn-sm" style="margin-top: 0.5rem;" onclick="openAiPanel(); aiQuickAction('analyze')">
+                        🤖 让 AI 帮我分析
+                    </button>
+                `;
+            }
+        }
+
+        function copyUrl(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                addLog({ type: 'success', message: 'URL 已复制到剪贴板' });
+            });
+        }
+
+        // ==================== 日志 ====================
+        function addLog(log) {
+            const content = document.getElementById('logContent');
+            const time = new Date().toLocaleTimeString();
+
+            const line = document.createElement('div');
+            line.className = `log-line ${log.type || 'info'}`;
+            line.innerHTML = `
+                <span class="log-time">[${time}]</span>
+                <span>${log.message}</span>
+            `;
+
+            content.appendChild(line);
+            content.scrollTop = content.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('logContent').innerHTML = '';
+        }
+
+        // ==================== AI 助手 ====================
+        function toggleAiPanel() {
+            const panel = document.getElementById('aiPanel');
+            const deployPanel = document.getElementById('deployPanel');
+
+            panel.classList.toggle('open');
+            deployPanel.classList.toggle('ai-open');
+        }
+
+        function openAiPanel() {
+            document.getElementById('aiPanel').classList.add('open');
+            document.getElementById('deployPanel').classList.add('ai-open');
+        }
+
+        function initAiInput() {
+            const input = document.getElementById('aiInput');
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendAiMessage();
+                }
+            });
+        }
+
+        async function sendAiMessage(message = null) {
+            const input = document.getElementById('aiInput');
+            const text = message || input.value.trim();
+
+            if (!text) return;
+
+            input.value = '';
+
+            // 添加用户消息
+            addAiMessage('user', text);
+
+            // 添加加载状态
+            const loadingId = addAiMessage('assistant', '<div class="spinner"></div> 思考中...');
+
+            try {
+                const res = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        messages: [...state.aiMessages, { role: 'user', content: text }],
+                        context: {
+                            projectId: state.projectId,
+                            serverId: state.selectedServer?.id,
+                            socketId: state.socketId
+                        }
+                    })
+                });
+
+                const result = await res.json();
+
+                // 更新加载消息
+                updateAiMessage(loadingId, result.response || result.error);
+
+                // 保存消息历史
+                state.aiMessages.push({ role: 'user', content: text });
+                state.aiMessages.push({ role: 'assistant', content: result.response });
+
+            } catch (error) {
+                updateAiMessage(loadingId, '抱歉，请求失败: ' + error.message);
+            }
+        }
+
+        function addAiMessage(role, content) {
+            const container = document.getElementById('aiMessages');
+            const id = 'msg-' + Date.now();
+
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            div.id = id;
+            div.innerHTML = `<div class="message-content">${formatMessage(content)}</div>`;
+
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+
+            return id;
+        }
+
+        function updateAiMessage(id, content) {
+            const msg = document.getElementById(id);
+            if (msg) {
+                msg.querySelector('.message-content').innerHTML = formatMessage(content);
+            }
+        }
+
+        function formatMessage(content) {
+            // 简单的 Markdown 格式化
+            return content
+                .replace(/\n/g, '<br>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        }
+
+        function handleAiProgress(data) {
+            if (data.type === 'tool_use') {
+                addAiMessage('tool', `🔧 正在执行: ${data.tool}`);
+            } else if (data.type === 'tool_result') {
+                addAiMessage('tool', `✅ ${data.tool} 完成`);
+            }
+        }
+
+        async function aiQuickAction(action) {
+            const messages = {
+                'analyze': '请分析最近的部署日志，找出失败原因。',
+                'fix': '请分析问题并自动修复，然后重新部署。',
+                'redeploy': '请直接重新执行部署。'
+            };
+
+            await sendAiMessage(messages[action]);
+        }
+    </script>
+</body>
+</html>
