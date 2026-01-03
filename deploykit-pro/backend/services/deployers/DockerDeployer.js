@@ -225,8 +225,10 @@ class DockerDeployer extends BaseDeployer {
             }
 
             // 9. 获取访问地址
-            const ip = this.config.connection.host;
-            const url = `http://${ip}:${hostPort}`;
+            const domain = this.config.connection.domain;
+            const host = domain || this.config.connection.host;
+            // 如果使用域名且端口为80，则不显示端口号
+            const url = (domain && hostPort === 80) ? `http://${host}` : `http://${host}:${hostPort}`;
 
             this.log('success', `\n🎉 Docker 部署成功！耗时: ${this.getElapsedTime()}`);
             this.log('success', `🌐 访问地址: ${url}`);

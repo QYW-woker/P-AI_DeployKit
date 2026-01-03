@@ -183,9 +183,11 @@ class LinuxDeployer extends BaseDeployer {
             await this.execCommand(script);
 
             // 4. 获取访问地址
-            const ip = this.config.connection.host;
+            const domain = this.config.connection.domain;
+            const host = domain || this.config.connection.host;
             const port = appPort || this.getDefaultPort(projectType);
-            const url = `http://${ip}:${port}`;
+            // 如果使用域名且端口为80，则不显示端口号
+            const url = (domain && port === 80) ? `http://${host}` : `http://${host}:${port}`;
 
             this.log('success', `\n🎉 部署成功！耗时: ${this.getElapsedTime()}`);
             this.log('success', `🌐 访问地址: ${url}`);

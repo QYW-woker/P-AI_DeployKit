@@ -950,6 +950,11 @@
                             <label class="form-label">私钥内容</label>
                             <textarea class="form-textarea" id="sshPrivateKey" rows="4" placeholder="粘贴私钥内容..."></textarea>
                         </div>
+                        <div class="form-group">
+                            <label class="form-label">访问域名 (可选)</label>
+                            <input type="text" class="form-input" id="sshDomain" placeholder="www.example.com">
+                            <small style="color: var(--text-muted); font-size: 0.75rem;">部署完成后显示的访问地址，留空则使用 IP 地址</small>
+                        </div>
                     </div>
 
                     <!-- API Token 配置 (Vercel/Netlify) -->
@@ -1248,6 +1253,7 @@
                 document.getElementById('sshPort').value = conn.port || 22;
                 document.getElementById('sshUsername').value = conn.username || '';
                 document.getElementById('authType').value = conn.authType || 'password';
+                document.getElementById('sshDomain').value = conn.domain || '';
                 toggleAuthField();
             } else if (['vercel', 'netlify'].includes(server.type)) {
                 document.getElementById('apiToken').value = '';
@@ -1295,6 +1301,10 @@
                     const key = document.getElementById('sshPrivateKey').value;
                     if (key) data.connection.privateKey = key;
                 }
+
+                // 添加域名配置
+                const domain = document.getElementById('sshDomain').value.trim();
+                if (domain) data.connection.domain = domain;
             } else if (['vercel', 'netlify'].includes(type)) {
                 const token = document.getElementById('apiToken').value;
                 if (token) data.connection.token = token;
