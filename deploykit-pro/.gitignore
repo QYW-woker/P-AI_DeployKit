@@ -13,6 +13,9 @@ workspace/
 *.log
 npm-debug.log*
 
+# PID files
+.deploykit.pid
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# DeployKit Pro 停止脚本
+# 用法: ./stop
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PID_FILE="$SCRIPT_DIR/.deploykit.pid"
+
+# 颜色定义
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+echo -e "${CYAN}"
+echo "╔═══════════════════════════════════════════════════╗"
+echo "║   🛑 DeployKit Pro - 停止脚本                      ║"
+echo "╚═══════════════════════════════════════════════════╝"
+echo -e "${NC}"
+
+# 检查 PID 文件是否存在
+if [ ! -f "$PID_FILE" ]; then
+    echo -e "${YELLOW}⚠ 未找到运行中的服务${NC}"
+
+    # 尝试查找可能运行的进程
+    RUNNING_PID=$(pgrep -f "node backend/server.js" 2>/dev/null)
+    if [ -n "$RUNNING_PID" ]; then
+        echo -e "${YELLOW}⚠ 检测到可能的残留进程 (PID: $RUNNING_PID)${NC}"
+        read -p "是否终止该进程? [y/N] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            kill "$RUNNING_PID" 2>/dev/null
+            sleep 1
+            if kill -0 "$RUNNING_PID" 2>/dev/null; then
+                kill -9 "$RUNNING_PID" 2>/dev/null
+            fi
+            echo -e "${GREEN}✓ 进程已终止${NC}"
+        fi
+    fi
+    exit 0
+fi
+
+# 读取 PID
+PID=$(cat "$PID_FILE")
+
+# 检查进程是否存在
+if ! kill -0 "$PID" 2>/dev/null; then
+    echo -e "${YELLOW}⚠ 进程 (PID: $PID) 已不存在${NC}"
+    rm -f "$PID_FILE"
+    exit 0
+fi
+
+# 停止进程
+echo -e "${YELLOW}▶ 正在停止服务 (PID: $PID)...${NC}"
+kill "$PID" 2>/dev/null
+
+# 等待进程退出
+WAIT_COUNT=0
+while kill -0 "$PID" 2>/dev/null && [ $WAIT_COUNT -lt 10 ]; do
+    sleep 1
+    WAIT_COUNT=$((WAIT_COUNT + 1))
+    echo -ne "\r  等待进程退出... ${WAIT_COUNT}s"
+done
+echo ""
+
+# 如果进程仍在运行，强制终止
+if kill -0 "$PID" 2>/dev/null; then
+    echo -e "${YELLOW}⚠ 进程未响应，正在强制终止...${NC}"
+    kill -9 "$PID" 2>/dev/null
+    sleep 1
+fi
+
+# 清理 PID 文件
+rm -f "$PID_FILE"
+
+echo ""
+echo -e "${GREEN}╔═══════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║   ✓ DeployKit Pro 已停止                           ║${NC}"
+echo -e "${GREEN}╚═══════════════════════════════════════════════════╝${NC}"
