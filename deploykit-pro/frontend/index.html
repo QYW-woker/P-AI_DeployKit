@@ -728,6 +728,71 @@
         .deploy-config.show {
             display: block;
         }
+
+        /* 文件浏览器样式 */
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 0.25rem;
+        }
+
+        .file-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .file-item.selected {
+            background: rgba(34, 211, 238, 0.1);
+            border: 1px solid var(--accent-cyan);
+        }
+
+        .file-icon {
+            font-size: 1.5rem;
+            margin-right: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 0.25rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .file-item:hover .file-actions {
+            opacity: 1;
+        }
+
+        /* 路径输入框带浏览按钮 */
+        .path-input-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .path-input-group .form-input {
+            flex: 1;
+        }
     </style>
 </head>
 <body>
@@ -799,12 +864,34 @@
                     <div class="form-row" id="sshConfigRow">
                         <div class="form-group">
                             <label class="form-label">部署路径 *</label>
-                            <input type="text" class="form-input" id="deployPath" placeholder="/www/myproject">
+                            <div class="path-input-group">
+                                <input type="text" class="form-input" id="deployPath" placeholder="/www/myproject">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="openFileBrowser()" title="浏览服务器目录">📂</button>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">应用端口</label>
                             <input type="number" class="form-input" id="appPort" placeholder="80">
                         </div>
+                    </div>
+                    <div class="form-row" id="domainConfigRow">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">项目域名 (可选)</label>
+                            <input type="text" class="form-input" id="projectDomain" placeholder="例如: myapp.example.com">
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                                💡 每个项目可以使用不同的域名，部署成功后将显示该域名地址
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 部署步骤提示 -->
+                    <div style="background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">📋 部署步骤</div>
+                        <ol style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); line-height: 1.6;">
+                            <li>点击 📂 按钮选择服务器上的<strong>目标部署路径</strong></li>
+                            <li>上传您的项目 ZIP 压缩包</li>
+                            <li>点击「开始部署」按钮</li>
+                        </ol>
                     </div>
 
                     <!-- 文件上传 -->
@@ -932,6 +1019,13 @@
                             </div>
                         </div>
                         <div class="form-group">
+                            <label class="form-label">域名 (可选)</label>
+                            <input type="text" class="form-input" id="sshDomain" placeholder="例如: example.com 或 www.mysite.com">
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                                💡 填写域名后，部署成功的访问地址将使用域名格式显示
+                            </div>
+                        </div>
+                        <div class="form-group">
                             <label class="form-label">用户名 *</label>
                             <input type="text" class="form-input" id="sshUsername" placeholder="root">
                         </div>
@@ -944,7 +1038,10 @@
                         </div>
                         <div class="form-group" id="passwordGroup">
                             <label class="form-label">密码</label>
-                            <input type="password" class="form-input" id="sshPassword" placeholder="输入密码">
+                            <div style="position: relative;">
+                                <input type="password" class="form-input" id="sshPassword" placeholder="输入密码" style="padding-right: 40px;">
+                                <button type="button" class="btn btn-icon" onclick="togglePasswordVisibility('sshPassword', this)" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%);">👁️</button>
+                            </div>
                         </div>
                         <div class="form-group" id="privateKeyGroup" style="display: none;">
                             <label class="form-label">私钥内容</label>
@@ -1006,6 +1103,190 @@
                 <button class="btn btn-secondary" onclick="closeServerModal()">取消</button>
                 <button class="btn btn-secondary" onclick="testServerConnection()">测试连接</button>
                 <button class="btn btn-primary" onclick="saveServer()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 文件浏览器模态框 -->
+    <div class="modal-overlay" id="fileBrowserModal">
+        <div class="modal" style="max-width: 700px;">
+            <div class="modal-header">
+                <span class="modal-title">📂 服务器文件浏览器</span>
+                <button class="btn btn-icon" onclick="closeFileBrowser()">✕</button>
+            </div>
+            <div class="modal-body" style="padding: 0;">
+                <!-- 路径导航 -->
+                <div style="padding: 1rem; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.5rem;">
+                    <button class="btn btn-icon btn-sm" onclick="navigateUp()" title="上级目录">⬆️</button>
+                    <button class="btn btn-icon btn-sm" onclick="refreshFileList()" title="刷新">🔄</button>
+                    <div style="flex: 1; display: flex; align-items: center; background: var(--bg-secondary); border-radius: 6px; padding: 0.5rem 0.75rem;">
+                        <span style="color: var(--text-muted); margin-right: 0.5rem;">📍</span>
+                        <input type="text" id="currentPath" class="form-input" style="border: none; background: transparent; padding: 0;" value="/" onkeydown="if(event.key==='Enter') navigateTo(this.value)">
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="showNewFolderDialog()">📁 新建文件夹</button>
+                </div>
+
+                <!-- 项目检测信息 -->
+                <div id="projectInfoPanel" style="display: none; padding: 1rem; border-bottom: 1px solid var(--border-color);">
+                    <!-- 项目基本信息 -->
+                    <div id="projectBasicInfo" style="display: flex; align-items: center; justify-content: space-between; background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(16, 185, 129, 0.1)); padding: 0.75rem; border-radius: 8px;">
+                        <div>
+                            <div style="font-weight: 600; color: var(--accent-cyan);">
+                                <span id="projectIcon">📦</span>
+                                <span id="projectTitle">检测到项目</span>
+                                <span id="serviceStatus" class="tag" style="margin-left: 0.5rem; display: none;"></span>
+                            </div>
+                            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                <span id="projectDetails"></span>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <span id="completenessScore" class="tag"></span>
+                            <button class="btn btn-primary btn-sm" id="deployExistingBtn" onclick="deployExistingProject()">
+                                🚀 直接部署
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 服务控制面板 -->
+                    <div id="serviceControlPanel" style="display: none; margin-top: 0.75rem; background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1)); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0.75rem;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <div style="font-weight: 600; color: var(--accent-blue);">
+                                    🎛️ 服务控制
+                                </div>
+                                <div id="serviceDetails" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;"></div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-sm" id="serviceStopBtn" onclick="stopService()" style="background: var(--error); color: white;">
+                                    🛑 停止
+                                </button>
+                                <button class="btn btn-sm" id="serviceStartBtn" onclick="startService()" style="background: var(--success); color: white;">
+                                    ▶️ 启动
+                                </button>
+                                <button class="btn btn-secondary btn-sm" id="serviceRestartBtn" onclick="restartService()">
+                                    🔄 重启
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 缺失文件警告 -->
+                    <div id="missingFilesPanel" style="display: none; margin-top: 0.75rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 0.75rem;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <div style="font-weight: 600; color: var(--error);">
+                                ⚠️ 项目不完整 - 缺少必要文件
+                            </div>
+                            <button class="btn btn-ai btn-sm" onclick="askAiForHelp()">
+                                🤖 AI 诊断
+                            </button>
+                        </div>
+                        <div id="missingFilesList" style="font-size: 0.85rem; max-height: 150px; overflow-y: auto;"></div>
+                    </div>
+
+                    <!-- 警告信息 -->
+                    <div id="warningsPanel" style="display: none; margin-top: 0.75rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.75rem;">
+                        <div style="font-weight: 600; color: var(--warning); margin-bottom: 0.5rem;">
+                            💡 注意事项
+                        </div>
+                        <ul id="warningsList" style="font-size: 0.85rem; margin: 0; padding-left: 1.25rem; color: var(--text-secondary);"></ul>
+                    </div>
+
+                    <!-- 补充上传按钮 -->
+                    <div id="uploadSupplementPanel" style="display: none; margin-top: 0.75rem;">
+                        <button class="btn btn-secondary btn-sm" onclick="showSupplementUpload()" style="width: 100%;">
+                            📤 补充上传缺失的文件
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 文件列表 -->
+                <div id="fileList" style="height: 350px; overflow-y: auto; padding: 0.5rem;">
+                    <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                        选择服务器后查看文件
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="flex-direction: column; align-items: stretch; gap: 0.75rem;">
+                <div style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 8px; padding: 0.75rem; font-size: 0.85rem;">
+                    <strong style="color: #fbbf24;">💡 使用提示：</strong>
+                    <ul style="margin: 0.5rem 0 0 1.25rem; padding: 0; color: var(--text-secondary);">
+                        <li>双击目录进入，如果检测到项目可以<strong>直接部署</strong></li>
+                        <li>或选择路径后上传新项目覆盖部署</li>
+                    </ul>
+                </div>
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button class="btn btn-secondary" onclick="closeFileBrowser()">取消</button>
+                    <button class="btn btn-primary" onclick="selectCurrentPath()">✓ 选择此路径</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新建文件夹对话框 -->
+    <div class="modal-overlay" id="newFolderModal">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <span class="modal-title">📁 新建文件夹</span>
+                <button class="btn btn-icon" onclick="closeNewFolderDialog()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">文件夹名称</label>
+                    <input type="text" class="form-input" id="newFolderName" placeholder="输入文件夹名称">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeNewFolderDialog()">取消</button>
+                <button class="btn btn-primary" onclick="createNewFolder()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 补充上传对话框 -->
+    <div class="modal-overlay" id="supplementUploadModal">
+        <div class="modal" style="max-width: 550px;">
+            <div class="modal-header">
+                <span class="modal-title">📤 补充上传缺失文件</span>
+                <button class="btn btn-icon" onclick="closeSupplementUpload()">✕</button>
+            </div>
+            <div class="modal-body">
+                <!-- 缺失文件列表 -->
+                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <div style="font-weight: 600; color: var(--error); margin-bottom: 0.5rem;">需要补充的文件：</div>
+                    <div id="supplementMissingList" style="font-size: 0.85rem; color: var(--text-secondary);"></div>
+                </div>
+
+                <!-- 上传说明 -->
+                <div style="background: rgba(34, 211, 238, 0.1); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <div style="font-weight: 600; color: var(--accent-cyan); margin-bottom: 0.5rem;">📋 操作步骤：</div>
+                    <ol style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); font-size: 0.85rem; line-height: 1.6;">
+                        <li>在本地找到上述缺失的文件/文件夹</li>
+                        <li>将它们打包成 <strong>ZIP</strong> 文件（保持目录结构）</li>
+                        <li>点击下方上传区域选择 ZIP 文件</li>
+                        <li>文件会自动合并到服务器上的项目中</li>
+                    </ol>
+                </div>
+
+                <!-- 上传区域 -->
+                <div class="upload-zone" id="supplementUploadZone" style="padding: 1.5rem;">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">点击选择要补充的 ZIP 文件</div>
+                    <div class="upload-hint">将缺失的文件/文件夹打包后上传</div>
+                </div>
+                <input type="file" class="hidden-input" id="supplementFileInput" accept=".zip">
+
+                <!-- 目标路径 -->
+                <div style="margin-top: 1rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px;">
+                    <span style="color: var(--text-muted);">📍 目标路径：</span>
+                    <span id="supplementTargetPath" style="color: var(--accent-cyan); font-family: var(--font-mono);"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeSupplementUpload()">取消</button>
+                <button class="btn btn-primary" id="supplementUploadBtn" onclick="doSupplementUpload()" disabled>
+                    📤 开始上传
+                </button>
             </div>
         </div>
     </div>
@@ -1158,7 +1439,13 @@
                 case 'windows':
                 case 'macos':
                 case 'docker':
-                    return server.connection?.host || '未配置';
+                    const host = server.connection?.host || '未配置';
+                    const domain = server.connection?.domain;
+                    // 如果配置了域名，显示域名；否则只显示 IP
+                    if (domain) {
+                        return `${domain} (${host})`;
+                    }
+                    return host;
                 case 'vercel':
                 case 'netlify':
                     return 'API 配置';
@@ -1240,6 +1527,17 @@
             document.getElementById('privateKeyGroup').style.display = authType === 'privateKey' ? 'block' : 'none';
         }
 
+        function togglePasswordVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                btn.textContent = '👁️';
+            }
+        }
+
         function fillServerForm(server) {
             document.getElementById('serverId').value = server.id;
             document.getElementById('serverName').value = server.name;
@@ -1251,6 +1549,7 @@
             if (['linux', 'windows', 'macos', 'docker'].includes(server.type)) {
                 document.getElementById('sshHost').value = conn.host || '';
                 document.getElementById('sshPort').value = conn.port || 22;
+                document.getElementById('sshDomain').value = conn.domain || '';
                 document.getElementById('sshUsername').value = conn.username || '';
                 document.getElementById('authType').value = conn.authType || 'password';
                 document.getElementById('sshDomain').value = conn.domain || '';
@@ -1293,6 +1592,12 @@
                     username: document.getElementById('sshUsername').value,
                     authType: document.getElementById('authType').value
                 };
+
+                // 域名配置（可选）
+                const domain = document.getElementById('sshDomain').value.trim();
+                if (domain) {
+                    data.connection.domain = domain;
+                }
 
                 if (data.connection.authType === 'password') {
                     const pwd = document.getElementById('sshPassword').value;
@@ -1408,6 +1713,7 @@
         function updateDeployForm() {
             const configCard = document.getElementById('deployConfigCard');
             const sshRow = document.getElementById('sshConfigRow');
+            const domainRow = document.getElementById('domainConfigRow');
 
             if (state.selectedServer) {
                 configCard.classList.add('show');
@@ -1416,8 +1722,10 @@
                 const type = state.selectedServer.type;
                 if (['vercel', 'netlify', 'aliyun-oss', 'tencent-cos', 'aws-s3'].includes(type)) {
                     sshRow.style.display = 'none';
+                    domainRow.style.display = 'none';
                 } else {
                     sshRow.style.display = 'grid';
+                    domainRow.style.display = 'block';
                     // 填充默认值
                     if (state.selectedServer.defaults?.deployPath) {
                         document.getElementById('deployPath').value = state.selectedServer.defaults.deployPath;
@@ -1500,6 +1808,28 @@
                 return;
             }
 
+            const deployPath = document.getElementById('deployPath').value;
+            const projectName = document.getElementById('projectName').value || 'my-project';
+            const projectType = document.getElementById('projectType').value;
+            const projectDomain = document.getElementById('projectDomain').value.trim();
+
+            // 部署前确认
+            const confirmMsg = `确认部署信息：
+
+📦 项目: ${state.uploadedFile.name}
+📁 类型: ${projectType}
+🖥️ 服务器: ${state.selectedServer.name}
+📍 部署路径: ${deployPath || '(未指定)'}
+🌐 访问域名: ${projectDomain || '(使用服务器默认)'}
+
+⚠️ 如果目标路径已有文件，将会被覆盖！
+
+确定要开始部署吗？`;
+
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
             state.isDeploying = true;
             const btn = document.getElementById('deployBtn');
             btn.disabled = true;
@@ -1526,6 +1856,10 @@
                 const appPort = document.getElementById('appPort').value;
                 if (appPort) formData.append('appPort', appPort);
 
+                // 项目域名（可选）
+                const projectDomain = document.getElementById('projectDomain').value.trim();
+                if (projectDomain) formData.append('projectDomain', projectDomain);
+
                 // 如果有已存在的项目 ID（AI 修改过的）
                 if (state.projectId) {
                     formData.append('projectId', state.projectId);
@@ -1538,13 +1872,21 @@
 
                 const result = await res.json();
 
-                if (result.success) {
+                // 无论成功或失败，都保存 projectId，以便 AI 助手可以分析
+                if (result.projectId) {
                     state.projectId = result.projectId;
+                }
+
+                if (result.success) {
                     showDeployResult(true, result.url);
                     document.getElementById('logStatus').textContent = '部署成功';
                 } else {
                     showDeployResult(false, result.error);
                     document.getElementById('logStatus').textContent = '部署失败';
+                    // 部署失败时，自动打开 AI 面板并触发分析
+                    setTimeout(() => {
+                        openAiPanel();
+                    }, 500);
                 }
             } catch (error) {
                 showDeployResult(false, error.message);
@@ -1723,6 +2065,843 @@
             };
 
             await sendAiMessage(messages[action]);
+        }
+
+        // ==================== 文件浏览器 ====================
+        let fileBrowserState = {
+            currentPath: '/',
+            selectedItem: null,
+            isLoading: false,
+            detectedProject: null // 检测到的项目信息
+        };
+
+        function openFileBrowser() {
+            if (!state.selectedServer) {
+                alert('请先选择服务器配置');
+                return;
+            }
+
+            // 只支持 SSH 类型的服务器
+            if (!['linux', 'windows', 'macos', 'docker'].includes(state.selectedServer.type)) {
+                alert('文件浏览器仅支持 SSH 连接的服务器');
+                return;
+            }
+
+            document.getElementById('fileBrowserModal').classList.add('open');
+            fileBrowserState.currentPath = '/';
+            document.getElementById('currentPath').value = '/';
+            loadRemoteFiles('/');
+        }
+
+        function closeFileBrowser() {
+            document.getElementById('fileBrowserModal').classList.remove('open');
+        }
+
+        async function loadRemoteFiles(path) {
+            if (fileBrowserState.isLoading) return;
+
+            fileBrowserState.isLoading = true;
+            fileBrowserState.detectedProject = null;
+            hideProjectInfo();
+
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = '<div style="text-align: center; padding: 3rem;"><div class="spinner" style="margin: 0 auto;"></div><p style="margin-top: 1rem; color: var(--text-muted);">加载中...</p></div>';
+
+            try {
+                // 同时获取文件列表和检测项目信息
+                const [filesRes, detectRes] = await Promise.all([
+                    fetch(`/api/servers/${state.selectedServer.id}/files?path=${encodeURIComponent(path)}`),
+                    fetch(`/api/servers/${state.selectedServer.id}/detect?path=${encodeURIComponent(path)}`)
+                ]);
+
+                const filesData = await filesRes.json();
+                const detectData = await detectRes.json();
+
+                if (filesData.success) {
+                    fileBrowserState.currentPath = path;
+                    document.getElementById('currentPath').value = path;
+                    renderFileList(filesData.items);
+
+                    // 显示项目检测结果
+                    if (detectData.success && detectData.isProject) {
+                        fileBrowserState.detectedProject = detectData;
+                        showProjectInfo(detectData);
+                    }
+                } else {
+                    fileList.innerHTML = `<div style="text-align: center; padding: 3rem; color: var(--error);">❌ ${filesData.error}</div>`;
+                }
+            } catch (error) {
+                fileList.innerHTML = `<div style="text-align: center; padding: 3rem; color: var(--error);">❌ 加载失败: ${error.message}</div>`;
+            } finally {
+                fileBrowserState.isLoading = false;
+            }
+        }
+
+        function showProjectInfo(info) {
+            const panel = document.getElementById('projectInfoPanel');
+            const icon = document.getElementById('projectIcon');
+            const title = document.getElementById('projectTitle');
+            const details = document.getElementById('projectDetails');
+            const scoreTag = document.getElementById('completenessScore');
+            const deployBtn = document.getElementById('deployExistingBtn');
+            const basicInfo = document.getElementById('projectBasicInfo');
+
+            // 项目类型图标
+            const typeIcons = {
+                'vue': '💚',
+                'react': '⚛️',
+                'node': '🟢',
+                'java': '☕',
+                'python': '🐍',
+                'static': '🌐'
+            };
+
+            // 状态文字
+            const statusText = {
+                'built': '✅ 已构建',
+                'installed': '📦 已安装依赖',
+                'uploaded': '📁 已上传'
+            };
+
+            icon.textContent = typeIcons[info.type] || '📦';
+            title.textContent = info.projectName || `${info.type?.toUpperCase() || '未知'} 项目`;
+
+            const statusStr = statusText[info.status] || '';
+            const typeStr = info.type ? `类型: ${info.framework || info.type}` : '';
+            const versionStr = info.version ? `v${info.version}` : '';
+
+            details.textContent = [typeStr, versionStr, statusStr].filter(Boolean).join(' | ');
+
+            // 显示完整性评分
+            const score = info.completenessScore || 100;
+            if (score >= 80) {
+                scoreTag.className = 'tag success';
+                scoreTag.textContent = `完整度 ${score}%`;
+            } else if (score >= 50) {
+                scoreTag.className = 'tag warning';
+                scoreTag.textContent = `完整度 ${score}%`;
+            } else {
+                scoreTag.className = 'tag error';
+                scoreTag.textContent = `完整度 ${score}%`;
+            }
+
+            // 更新基本信息面板背景色
+            if (!info.isComplete) {
+                basicInfo.style.background = 'linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(245, 158, 11, 0.1))';
+                deployBtn.disabled = info.missingFiles?.some(f => f.critical);
+                if (deployBtn.disabled) {
+                    deployBtn.textContent = '❌ 无法部署';
+                    deployBtn.title = '项目缺少关键文件，无法部署';
+                }
+            } else {
+                basicInfo.style.background = 'linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(16, 185, 129, 0.1))';
+                deployBtn.disabled = false;
+                deployBtn.textContent = '🚀 直接部署';
+                deployBtn.title = '';
+            }
+
+            // 显示缺失文件
+            const missingPanel = document.getElementById('missingFilesPanel');
+            const missingList = document.getElementById('missingFilesList');
+            const uploadPanel = document.getElementById('uploadSupplementPanel');
+
+            if (info.missingFiles && info.missingFiles.length > 0) {
+                missingPanel.style.display = 'block';
+                uploadPanel.style.display = 'block';
+
+                missingList.innerHTML = info.missingFiles.map(item => `
+                    <div style="padding: 0.5rem; margin-bottom: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 6px; ${item.critical ? 'border-left: 3px solid var(--error);' : 'border-left: 3px solid var(--warning);'}">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="color: ${item.critical ? 'var(--error)' : 'var(--warning)'};">
+                                ${item.critical ? '🚫' : '⚠️'}
+                            </span>
+                            <strong style="color: var(--text-primary);">${item.file}</strong>
+                            ${item.critical ? '<span class="tag error" style="font-size: 0.7rem;">关键文件</span>' : ''}
+                        </div>
+                        <div style="color: var(--text-muted); margin-top: 0.25rem; margin-left: 1.5rem;">
+                            ${item.reason}
+                        </div>
+                        <div style="color: var(--accent-cyan); margin-top: 0.25rem; margin-left: 1.5rem; font-size: 0.8rem;">
+                            💡 ${item.fix}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                missingPanel.style.display = 'none';
+                uploadPanel.style.display = 'none';
+            }
+
+            // 显示警告
+            const warningsPanel = document.getElementById('warningsPanel');
+            const warningsList = document.getElementById('warningsList');
+
+            if (info.warnings && info.warnings.length > 0) {
+                warningsPanel.style.display = 'block';
+                warningsList.innerHTML = info.warnings.map(w => `<li>${w}</li>`).join('');
+            } else {
+                warningsPanel.style.display = 'none';
+            }
+
+            panel.style.display = 'block';
+
+            // 检查服务运行状态
+            checkServiceStatus();
+        }
+
+        function hideProjectInfo() {
+            document.getElementById('projectInfoPanel').style.display = 'none';
+            document.getElementById('missingFilesPanel').style.display = 'none';
+            document.getElementById('warningsPanel').style.display = 'none';
+            document.getElementById('uploadSupplementPanel').style.display = 'none';
+            document.getElementById('serviceControlPanel').style.display = 'none';
+        }
+
+        // ==================== 服务控制功能 ====================
+
+        // 服务控制状态
+        let serviceControlState = {
+            projectPath: '',
+            projectType: '',
+            projectName: '',
+            port: null,
+            running: false
+        };
+
+        // 检查并显示服务状态
+        async function checkServiceStatus() {
+            const info = fileBrowserState.detectedProject;
+            if (!info || !info.isProject) {
+                document.getElementById('serviceControlPanel').style.display = 'none';
+                return;
+            }
+
+            const projectName = info.projectName || 'my-project';
+            const projectType = info.type || 'static';
+
+            // 保存状态
+            serviceControlState.projectPath = fileBrowserState.currentPath;
+            serviceControlState.projectType = projectType;
+            serviceControlState.projectName = projectName;
+
+            try {
+                const res = await fetch(`/api/servers/${state.selectedServer.id}/service-status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        projectPath: fileBrowserState.currentPath,
+                        projectType: projectType,
+                        projectName: projectName
+                    })
+                });
+
+                const status = await res.json();
+
+                if (status.success) {
+                    serviceControlState.running = status.running;
+                    serviceControlState.port = status.port;
+
+                    // 更新状态显示
+                    const statusTag = document.getElementById('serviceStatus');
+                    const controlPanel = document.getElementById('serviceControlPanel');
+                    const detailsEl = document.getElementById('serviceDetails');
+
+                    if (status.running) {
+                        statusTag.className = 'tag success';
+                        statusTag.textContent = '运行中';
+                        statusTag.style.display = 'inline-block';
+
+                        document.getElementById('serviceStopBtn').style.display = 'inline-flex';
+                        document.getElementById('serviceStartBtn').style.display = 'none';
+                        document.getElementById('serviceRestartBtn').style.display = 'inline-flex';
+
+                        let details = `类型: ${status.type || 'unknown'}`;
+                        if (status.port) details += ` | 端口: ${status.port}`;
+                        detailsEl.textContent = details;
+                    } else {
+                        statusTag.className = 'tag';
+                        statusTag.style.background = 'var(--text-muted)';
+                        statusTag.textContent = '已停止';
+                        statusTag.style.display = 'inline-block';
+
+                        document.getElementById('serviceStopBtn').style.display = 'none';
+                        document.getElementById('serviceStartBtn').style.display = 'inline-flex';
+                        document.getElementById('serviceRestartBtn').style.display = 'none';
+
+                        detailsEl.textContent = '服务当前未运行，可点击启动按钮启动服务';
+                    }
+
+                    controlPanel.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('检查服务状态失败:', error);
+            }
+        }
+
+        // 停止服务
+        async function stopService() {
+            const port = document.getElementById('appPort').value || serviceControlState.port || 80;
+
+            if (!confirm(`确定要停止服务 "${serviceControlState.projectName}" 吗？\n\n这将：\n• 停止 PM2 进程（如果有）\n• 移除 Nginx 配置\n• 释放端口 ${port}`)) {
+                return;
+            }
+
+            const btn = document.getElementById('serviceStopBtn');
+            btn.disabled = true;
+            btn.innerHTML = '⏳ 停止中...';
+
+            try {
+                const res = await fetch(`/api/servers/${state.selectedServer.id}/service-stop`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        projectPath: serviceControlState.projectPath,
+                        projectType: serviceControlState.projectType,
+                        projectName: serviceControlState.projectName,
+                        port: port,
+                        socketId: state.socketId
+                    })
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+                    addLog({ type: 'success', message: '✅ 服务已停止', timestamp: Date.now() });
+                    await checkServiceStatus();
+                } else {
+                    addLog({ type: 'error', message: `❌ 停止失败: ${result.error}`, timestamp: Date.now() });
+                    alert('停止服务失败: ' + result.error);
+                }
+            } catch (error) {
+                addLog({ type: 'error', message: `❌ 停止失败: ${error.message}`, timestamp: Date.now() });
+                alert('停止服务失败: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🛑 停止';
+            }
+        }
+
+        // 启动服务
+        async function startService() {
+            const port = document.getElementById('appPort').value || serviceControlState.port || 80;
+
+            if (!confirm(`确定要启动服务 "${serviceControlState.projectName}" 吗？\n\n将在端口 ${port} 上启动服务。`)) {
+                return;
+            }
+
+            const btn = document.getElementById('serviceStartBtn');
+            btn.disabled = true;
+            btn.innerHTML = '⏳ 启动中...';
+
+            try {
+                const res = await fetch(`/api/servers/${state.selectedServer.id}/service-start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        projectPath: serviceControlState.projectPath,
+                        projectType: serviceControlState.projectType,
+                        projectName: serviceControlState.projectName,
+                        port: port,
+                        socketId: state.socketId
+                    })
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+                    addLog({ type: 'success', message: `✅ 服务已启动: ${result.url}`, timestamp: Date.now() });
+                    await checkServiceStatus();
+                } else {
+                    addLog({ type: 'error', message: `❌ 启动失败: ${result.error}`, timestamp: Date.now() });
+                    alert('启动服务失败: ' + result.error);
+                }
+            } catch (error) {
+                addLog({ type: 'error', message: `❌ 启动失败: ${error.message}`, timestamp: Date.now() });
+                alert('启动服务失败: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '▶️ 启动';
+            }
+        }
+
+        // 重启服务
+        async function restartService() {
+            const port = document.getElementById('appPort').value || serviceControlState.port || 80;
+
+            if (!confirm(`确定要重启服务 "${serviceControlState.projectName}" 吗？\n\n这将先停止现有服务，然后重新启动。`)) {
+                return;
+            }
+
+            const btn = document.getElementById('serviceRestartBtn');
+            btn.disabled = true;
+            btn.innerHTML = '⏳ 重启中...';
+
+            try {
+                const res = await fetch(`/api/servers/${state.selectedServer.id}/service-restart`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        projectPath: serviceControlState.projectPath,
+                        projectType: serviceControlState.projectType,
+                        projectName: serviceControlState.projectName,
+                        port: port,
+                        socketId: state.socketId
+                    })
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+                    addLog({ type: 'success', message: `✅ 服务已重启: ${result.url}`, timestamp: Date.now() });
+                    await checkServiceStatus();
+                } else {
+                    addLog({ type: 'error', message: `❌ 重启失败: ${result.error}`, timestamp: Date.now() });
+                    alert('重启服务失败: ' + result.error);
+                }
+            } catch (error) {
+                addLog({ type: 'error', message: `❌ 重启失败: ${error.message}`, timestamp: Date.now() });
+                alert('重启服务失败: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔄 重启';
+            }
+        }
+
+        // 请求 AI 帮助分析项目问题
+        async function askAiForHelp() {
+            const info = fileBrowserState.detectedProject;
+            if (!info) return;
+
+            // 关闭文件浏览器，打开 AI 面板
+            closeFileBrowser();
+            openAiPanel();
+
+            // 构建详细的问题描述
+            let problemDesc = `我在服务器路径 "${fileBrowserState.currentPath}" 发现了一个 ${info.framework || info.type} 项目，但检测到以下问题：\n\n`;
+
+            if (info.missingFiles && info.missingFiles.length > 0) {
+                problemDesc += '**缺失的文件：**\n';
+                info.missingFiles.forEach(f => {
+                    problemDesc += `- ${f.file}：${f.reason}\n`;
+                });
+                problemDesc += '\n';
+            }
+
+            if (info.warnings && info.warnings.length > 0) {
+                problemDesc += '**警告信息：**\n';
+                info.warnings.forEach(w => {
+                    problemDesc += `- ${w}\n`;
+                });
+                problemDesc += '\n';
+            }
+
+            problemDesc += '请帮我分析这些问题，并给出详细的解决方案，告诉我需要补充哪些文件、如何上传。';
+
+            await sendAiMessage(problemDesc);
+        }
+
+        // 补充上传状态
+        let supplementUploadState = {
+            file: null,
+            targetPath: '',
+            missingFiles: []
+        };
+
+        // 显示补充上传对话框
+        function showSupplementUpload() {
+            const info = fileBrowserState.detectedProject;
+            if (!info || !info.missingFiles || info.missingFiles.length === 0) {
+                alert('没有检测到缺失的文件');
+                return;
+            }
+
+            // 保存状态
+            supplementUploadState.targetPath = fileBrowserState.currentPath;
+            supplementUploadState.missingFiles = info.missingFiles;
+            supplementUploadState.file = null;
+
+            // 显示缺失文件列表
+            const listEl = document.getElementById('supplementMissingList');
+            listEl.innerHTML = info.missingFiles.map(f => `
+                <div style="padding: 0.25rem 0;">
+                    <span style="color: ${f.critical ? 'var(--error)' : 'var(--warning)'};">
+                        ${f.critical ? '🚫' : '⚠️'}
+                    </span>
+                    <strong>${f.file}</strong>
+                    <span style="color: var(--text-muted); font-size: 0.8rem;"> - ${f.reason}</span>
+                </div>
+            `).join('');
+
+            // 显示目标路径
+            document.getElementById('supplementTargetPath').textContent = fileBrowserState.currentPath;
+
+            // 重置上传区域
+            const zone = document.getElementById('supplementUploadZone');
+            zone.classList.remove('has-file');
+            zone.innerHTML = `
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">点击选择要补充的 ZIP 文件</div>
+                <div class="upload-hint">将缺失的文件/文件夹打包后上传</div>
+            `;
+            document.getElementById('supplementUploadBtn').disabled = true;
+
+            // 初始化上传区域事件
+            initSupplementUploadZone();
+
+            // 显示模态框
+            document.getElementById('supplementUploadModal').classList.add('open');
+        }
+
+        function closeSupplementUpload() {
+            document.getElementById('supplementUploadModal').classList.remove('open');
+        }
+
+        function initSupplementUploadZone() {
+            const zone = document.getElementById('supplementUploadZone');
+            const input = document.getElementById('supplementFileInput');
+
+            // 移除旧的事件监听器（通过克隆元素）
+            const newZone = zone.cloneNode(true);
+            zone.parentNode.replaceChild(newZone, zone);
+
+            const newInput = input.cloneNode(true);
+            input.parentNode.replaceChild(newInput, input);
+
+            // 添加新的事件监听器
+            newZone.addEventListener('click', () => newInput.click());
+
+            newZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                newZone.classList.add('dragover');
+            });
+
+            newZone.addEventListener('dragleave', () => {
+                newZone.classList.remove('dragover');
+            });
+
+            newZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                newZone.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file) handleSupplementFileSelect(file);
+            });
+
+            newInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) handleSupplementFileSelect(file);
+            });
+        }
+
+        function handleSupplementFileSelect(file) {
+            if (!file.name.endsWith('.zip')) {
+                alert('请上传 ZIP 文件');
+                return;
+            }
+
+            supplementUploadState.file = file;
+
+            const zone = document.getElementById('supplementUploadZone');
+            zone.classList.add('has-file');
+            zone.innerHTML = `
+                <div class="upload-file-info">
+                    <span>📦</span>
+                    <span>${file.name}</span>
+                    <span>(${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                </div>
+            `;
+
+            document.getElementById('supplementUploadBtn').disabled = false;
+        }
+
+        async function doSupplementUpload() {
+            if (!supplementUploadState.file) {
+                alert('请先选择文件');
+                return;
+            }
+
+            const btn = document.getElementById('supplementUploadBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner"></div> 上传中...';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', supplementUploadState.file);
+                formData.append('remotePath', supplementUploadState.targetPath);
+                formData.append('socketId', state.socketId);
+
+                const res = await fetch(`/api/servers/${state.selectedServer.id}/upload-supplement`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+                    addLog({ type: 'success', message: '✅ 补充上传成功！' });
+                    closeSupplementUpload();
+                    closeFileBrowser();
+
+                    // 重新检测项目
+                    alert('补充上传成功！请重新打开文件浏览器检查项目完整性。');
+                } else {
+                    addLog({ type: 'error', message: `❌ 补充上传失败: ${result.error}` });
+                    alert('上传失败: ' + result.error);
+                }
+            } catch (error) {
+                addLog({ type: 'error', message: `❌ 上传失败: ${error.message}` });
+                alert('上传失败: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '📤 开始上传';
+            }
+        }
+
+        async function deployExistingProject() {
+            const info = fileBrowserState.detectedProject;
+            if (!info) {
+                alert('未检测到项目信息');
+                return;
+            }
+
+            const projectName = info.projectName || 'my-project';
+            const projectType = info.type || 'static';
+            const projectDomain = document.getElementById('projectDomain').value.trim();
+
+            const confirmMsg = `确认部署已存在的项目：
+
+📦 项目: ${projectName}
+📁 类型: ${projectType}
+🖥️ 服务器: ${state.selectedServer.name}
+📍 路径: ${fileBrowserState.currentPath}
+🌐 访问域名: ${projectDomain || '(使用服务器默认)'}
+
+这将执行：
+${info.status === 'built' ? '• 直接配置 Nginx 服务' : '• 安装依赖 → 构建 → 配置服务'}
+
+确定要开始部署吗？`;
+
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
+            // 关闭文件浏览器
+            closeFileBrowser();
+
+            // 显示部署状态
+            state.isDeploying = true;
+            const btn = document.getElementById('deployBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner"></div> 部署中...';
+            document.getElementById('deployResult').style.display = 'none';
+            clearLogs();
+            document.getElementById('logStatus').textContent = '部署中...';
+
+            try {
+                const res = await fetch(`/api/servers/${state.selectedServer.id}/deploy-existing`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        deployPath: fileBrowserState.currentPath,
+                        projectType: projectType,
+                        projectName: projectName,
+                        appPort: document.getElementById('appPort').value || 80,
+                        projectDomain: projectDomain || undefined,  // 传递项目域名
+                        socketId: state.socketId
+                    })
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+                    showDeployResult(true, result.url);
+                    document.getElementById('logStatus').textContent = '部署成功';
+                } else {
+                    showDeployResult(false, result.error);
+                    document.getElementById('logStatus').textContent = '部署失败';
+                    setTimeout(() => openAiPanel(), 500);
+                }
+            } catch (error) {
+                showDeployResult(false, error.message);
+                document.getElementById('logStatus').textContent = '部署失败';
+            } finally {
+                state.isDeploying = false;
+                btn.disabled = false;
+                btn.innerHTML = '🚀 开始部署';
+                checkDeployReady();
+            }
+        }
+
+        function renderFileList(items) {
+            const fileList = document.getElementById('fileList');
+
+            if (items.length === 0) {
+                fileList.innerHTML = '<div style="text-align: center; padding: 3rem; color: var(--text-muted);">📭 空目录</div>';
+                return;
+            }
+
+            fileList.innerHTML = items.map(item => {
+                const icon = item.type === 'directory' ? '📁' : getFileIcon(item.name);
+                const size = item.type === 'file' ? formatFileSize(item.size) : '';
+                const time = item.modifyTime ? new Date(item.modifyTime).toLocaleString() : '';
+
+                return `
+                    <div class="file-item" onclick="handleFileClick('${item.name}', '${item.type}')" ondblclick="handleFileDblClick('${item.name}', '${item.type}')">
+                        <span class="file-icon">${icon}</span>
+                        <div class="file-info">
+                            <div class="file-name">${item.name}</div>
+                            <div class="file-meta">${size}${size && time ? ' • ' : ''}${time}</div>
+                        </div>
+                        <div class="file-actions">
+                            ${item.type === 'directory' ? `<button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); deleteRemoteItem('${item.name}', true)" title="删除目录">🗑️</button>` : ''}
+                            ${item.type === 'file' ? `<button class="btn btn-icon btn-sm" onclick="event.stopPropagation(); deleteRemoteItem('${item.name}', false)" title="删除文件">🗑️</button>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const icons = {
+                'js': '📜', 'ts': '📜', 'jsx': '📜', 'tsx': '📜',
+                'html': '🌐', 'css': '🎨', 'scss': '🎨', 'less': '🎨',
+                'json': '📋', 'xml': '📋', 'yaml': '📋', 'yml': '📋',
+                'md': '📝', 'txt': '📝', 'log': '📝',
+                'png': '🖼️', 'jpg': '🖼️', 'jpeg': '🖼️', 'gif': '🖼️', 'svg': '🖼️',
+                'zip': '📦', 'tar': '📦', 'gz': '📦', 'rar': '📦',
+                'sh': '⚙️', 'bash': '⚙️', 'py': '🐍', 'java': '☕',
+                'env': '🔐', 'lock': '🔒'
+            };
+            return icons[ext] || '📄';
+        }
+
+        function formatFileSize(bytes) {
+            if (!bytes) return '';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let i = 0;
+            while (bytes >= 1024 && i < units.length - 1) {
+                bytes /= 1024;
+                i++;
+            }
+            return bytes.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+        }
+
+        function handleFileClick(name, type) {
+            // 单击选中
+            document.querySelectorAll('.file-item').forEach(el => el.classList.remove('selected'));
+            event.currentTarget.classList.add('selected');
+            fileBrowserState.selectedItem = { name, type };
+        }
+
+        function handleFileDblClick(name, type) {
+            if (type === 'directory') {
+                // 双击进入目录
+                const newPath = fileBrowserState.currentPath === '/'
+                    ? '/' + name
+                    : fileBrowserState.currentPath + '/' + name;
+                loadRemoteFiles(newPath);
+            }
+        }
+
+        function navigateUp() {
+            if (fileBrowserState.currentPath === '/') return;
+
+            const parts = fileBrowserState.currentPath.split('/').filter(p => p);
+            parts.pop();
+            const newPath = '/' + parts.join('/');
+            loadRemoteFiles(newPath || '/');
+        }
+
+        function navigateTo(path) {
+            if (!path) path = '/';
+            if (!path.startsWith('/')) path = '/' + path;
+            loadRemoteFiles(path);
+        }
+
+        function refreshFileList() {
+            loadRemoteFiles(fileBrowserState.currentPath);
+        }
+
+        function selectCurrentPath() {
+            // 如果选中了目录，使用选中的目录路径
+            let selectedPath = fileBrowserState.currentPath;
+            if (fileBrowserState.selectedItem && fileBrowserState.selectedItem.type === 'directory') {
+                selectedPath = fileBrowserState.currentPath === '/'
+                    ? '/' + fileBrowserState.selectedItem.name
+                    : fileBrowserState.currentPath + '/' + fileBrowserState.selectedItem.name;
+            }
+
+            document.getElementById('deployPath').value = selectedPath;
+            closeFileBrowser();
+        }
+
+        function showNewFolderDialog() {
+            document.getElementById('newFolderModal').classList.add('open');
+            document.getElementById('newFolderName').value = '';
+            document.getElementById('newFolderName').focus();
+        }
+
+        function closeNewFolderDialog() {
+            document.getElementById('newFolderModal').classList.remove('open');
+        }
+
+        async function createNewFolder() {
+            const name = document.getElementById('newFolderName').value.trim();
+            if (!name) {
+                alert('请输入文件夹名称');
+                return;
+            }
+
+            const newPath = fileBrowserState.currentPath === '/'
+                ? '/' + name
+                : fileBrowserState.currentPath + '/' + name;
+
+            try {
+                const res = await fetch(`/api/servers/${state.selectedServer.id}/mkdir`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: newPath })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    closeNewFolderDialog();
+                    refreshFileList();
+                    addLog({ type: 'success', message: `文件夹已创建: ${newPath}` });
+                } else {
+                    alert('创建失败: ' + data.error);
+                }
+            } catch (error) {
+                alert('创建失败: ' + error.message);
+            }
+        }
+
+        async function deleteRemoteItem(name, isDir) {
+            const typeName = isDir ? '目录' : '文件';
+            if (!confirm(`确定要删除${typeName} "${name}" 吗？${isDir ? '\n\n⚠️ 这将删除目录下所有内容！' : ''}`)) {
+                return;
+            }
+
+            const fullPath = fileBrowserState.currentPath === '/'
+                ? '/' + name
+                : fileBrowserState.currentPath + '/' + name;
+
+            try {
+                const res = await fetch(`/api/servers/${state.selectedServer.id}/files?path=${encodeURIComponent(fullPath)}&isDir=${isDir}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    refreshFileList();
+                    addLog({ type: 'success', message: `已删除: ${fullPath}` });
+                } else {
+                    alert('删除失败: ' + data.error);
+                }
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
         }
     </script>
 </body>

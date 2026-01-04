@@ -1,9 +1,9 @@
 /**
  * AI 助手服务
- * 使用 Claude API 提供智能部署辅助
+ * 使用 DeepSeek API 提供智能部署辅助
  */
 
-const Anthropic = require('@anthropic-ai/sdk');
+const OpenAI = require('openai');
 const fs = require('fs').promises;
 const path = require('path');
 const { exec } = require('child_process');
@@ -17,138 +17,160 @@ class AIAssistant {
     }
 
     /**
-     * 初始化 Claude 客户端
+     * 初始化 DeepSeek 客户端
      */
     initClient() {
         if (!this.client) {
-            const apiKey = process.env.ANTHROPIC_API_KEY;
+            const apiKey = process.env.DEEPSEEK_API_KEY;
             if (!apiKey) {
-                throw new Error('未配置 ANTHROPIC_API_KEY 环境变量');
+                throw new Error('未配置 DEEPSEEK_API_KEY 环境变量');
             }
-            this.client = new Anthropic({ apiKey });
+            this.client = new OpenAI({
+                apiKey,
+                baseURL: 'https://api.deepseek.com'
+            });
         }
         return this.client;
     }
 
     /**
-     * AI 可用的工具定义
+     * AI 可用的工具定义 (OpenAI 格式)
      */
     getTools() {
         return [
             {
-                name: "read_file",
-                description: "读取项目文件内容，用于分析配置、代码、日志等。支持读取 package.json、配置文件、源代码等。",
-                input_schema: {
-                    type: "object",
-                    properties: {
-                        filepath: {
-                            type: "string",
-                            description: "相对于项目根目录的文件路径，如 'package.json'、'src/index.js'"
-                        }
-                    },
-                    required: ["filepath"]
-                }
-            },
-            {
-                name: "write_file",
-                description: "写入或修改项目文件，用于修复配置错误、添加依赖、修改代码等。",
-                input_schema: {
-                    type: "object",
-                    properties: {
-                        filepath: {
-                            type: "string",
-                            description: "相对于项目根目录的文件路径"
+                type: "function",
+                function: {
+                    name: "read_file",
+                    description: "读取项目文件内容，用于分析配置、代码、日志等。支持读取 package.json、配置文件、源代码等。",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            filepath: {
+                                type: "string",
+                                description: "相对于项目根目录的文件路径，如 'package.json'、'src/index.js'"
+                            }
                         },
-                        content: {
-                            type: "string",
-                            description: "要写入的完整文件内容"
-                        }
-                    },
-                    required: ["filepath", "content"]
+                        required: ["filepath"]
+                    }
                 }
             },
             {
-                name: "list_directory",
-                description: "列出目录内容，用于了解项目结构、查找文件等。",
-                input_schema: {
-                    type: "object",
-                    properties: {
-                        dirpath: {
-                            type: "string",
-                            description: "相对于项目根目录的目录路径，默认为根目录",
-                            default: ""
+                type: "function",
+                function: {
+                    name: "write_file",
+                    description: "写入或修改项目文件，用于修复配置错误、添加依赖、修改代码等。",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            filepath: {
+                                type: "string",
+                                description: "相对于项目根目录的文件路径"
+                            },
+                            content: {
+                                type: "string",
+                                description: "要写入的完整文件内容"
+                            }
+                        },
+                        required: ["filepath", "content"]
+                    }
+                }
+            },
+            {
+                type: "function",
+                function: {
+                    name: "list_directory",
+                    description: "列出目录内容，用于了解项目结构、查找文件等。",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            dirpath: {
+                                type: "string",
+                                description: "相对于项目根目录的目录路径，默认为根目录"
+                            }
                         }
                     }
                 }
             },
             {
-                name: "execute_deploy",
-                description: "执行部署操作。在修复问题后可以调用此工具重新部署。",
-                input_schema: {
-                    type: "object",
-                    properties: {
-                        serverId: {
-                            type: "string",
-                            description: "目标服务器配置 ID"
+                type: "function",
+                function: {
+                    name: "execute_deploy",
+                    description: "执行部署操作。在修复问题后可以调用此工具重新部署。",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            serverId: {
+                                type: "string",
+                                description: "目标服务器配置 ID"
+                            },
+                            deployPath: {
+                                type: "string",
+                                description: "部署目标路径"
+                            },
+                            projectType: {
+                                type: "string",
+                                description: "项目类型: static, vue, react, node, java, python, custom"
+                            },
+                            projectName: {
+                                type: "string",
+                                description: "项目名称"
+                            },
+                            appPort: {
+                                type: "number",
+                                description: "应用端口号"
+                            }
                         },
-                        deployPath: {
-                            type: "string",
-                            description: "部署目标路径"
-                        },
-                        projectType: {
-                            type: "string",
-                            description: "项目类型: static, vue, react, node, java, python, custom"
-                        },
-                        projectName: {
-                            type: "string",
-                            description: "项目名称"
-                        },
-                        appPort: {
-                            type: "number",
-                            description: "应用端口号"
-                        }
-                    },
-                    required: ["serverId", "deployPath", "projectType", "projectName"]
+                        required: ["serverId", "deployPath", "projectType", "projectName"]
+                    }
                 }
             },
             {
-                name: "get_deploy_logs",
-                description: "获取最近的部署日志，用于分析部署失败原因。",
-                input_schema: {
-                    type: "object",
-                    properties: {
-                        limit: {
-                            type: "number",
-                            description: "返回的日志条数，默认 50",
-                            default: 50
+                type: "function",
+                function: {
+                    name: "get_deploy_logs",
+                    description: "获取最近的部署日志，用于分析部署失败原因。",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            limit: {
+                                type: "number",
+                                description: "返回的日志条数，默认 50"
+                            }
                         }
                     }
                 }
             },
             {
-                name: "run_command",
-                description: "在项目目录中执行本地命令，如 npm install、npm run build 等，用于测试修复是否有效。",
-                input_schema: {
-                    type: "object",
-                    properties: {
-                        command: {
-                            type: "string",
-                            description: "要执行的命令"
+                type: "function",
+                function: {
+                    name: "run_command",
+                    description: "在项目目录中执行本地命令，如 npm install、npm run build 等，用于测试修复是否有效。",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            command: {
+                                type: "string",
+                                description: "要执行的命令"
+                            },
+                            cwd: {
+                                type: "string",
+                                description: "工作目录（可选）"
+                            }
                         },
-                        cwd: {
-                            type: "string",
-                            description: "工作目录（可选）"
-                        }
-                    },
-                    required: ["command"]
+                        required: ["command"]
+                    }
                 }
             },
             {
-                name: "analyze_project",
-                description: "分析项目类型和结构，自动识别项目类型、框架、依赖等信息。",
-                input_schema: {
-                    type: "object",
-                    properties: {}
+                type: "function",
+                function: {
+                    name: "analyze_project",
+                    description: "分析项目类型和结构，自动识别项目类型、框架、依赖等信息。",
+                    parameters: {
+                        type: "object",
+                        properties: {}
+                    }
                 }
             }
         ];
@@ -158,10 +180,20 @@ class AIAssistant {
      * 执行工具
      */
     async executeTool(toolName, toolInput, context) {
-        const projectPath = path.join(this.workspacePath, context.projectId);
+        // 对于不需要 projectId 的工具，允许直接执行
+        const toolsWithoutProjectId = ['get_deploy_logs'];
+
+        // 检查 projectId 是否存在（部分工具需要）
+        if (!context.projectId && !toolsWithoutProjectId.includes(toolName)) {
+            return { success: false, error: '未指定项目，请先上传项目文件。如果已上传，请刷新页面后重试。' };
+        }
+        const projectPath = context.projectId ? path.join(this.workspacePath, context.projectId) : null;
 
         switch (toolName) {
             case 'read_file': {
+                if (!projectPath) {
+                    return { success: false, error: '需要先上传项目文件' };
+                }
                 const filePath = path.join(projectPath, toolInput.filepath);
                 try {
                     const content = await fs.readFile(filePath, 'utf-8');
@@ -176,6 +208,9 @@ class AIAssistant {
             }
 
             case 'write_file': {
+                if (!projectPath) {
+                    return { success: false, error: '需要先上传项目文件' };
+                }
                 const filePath = path.join(projectPath, toolInput.filepath);
                 try {
                     // 确保目录存在
@@ -192,6 +227,9 @@ class AIAssistant {
             }
 
             case 'list_directory': {
+                if (!projectPath) {
+                    return { success: false, error: '需要先上传项目文件' };
+                }
                 const dirPath = path.join(projectPath, toolInput.dirpath || '');
                 try {
                     const items = await fs.readdir(dirPath, { withFileTypes: true });
@@ -256,6 +294,9 @@ class AIAssistant {
             }
 
             case 'run_command': {
+                if (!projectPath) {
+                    return { success: false, error: '需要先上传项目文件' };
+                }
                 return new Promise((resolve) => {
                     const cwd = toolInput.cwd
                         ? path.join(projectPath, toolInput.cwd)
@@ -279,6 +320,9 @@ class AIAssistant {
             }
 
             case 'analyze_project': {
+                if (!projectPath) {
+                    return { success: false, error: '需要先上传项目文件' };
+                }
                 try {
                     const analysis = await this.analyzeProject(projectPath);
                     return { success: true, ...analysis };
@@ -441,55 +485,67 @@ class AIAssistant {
 当前项目 ID: ${context.projectId || '未知'}
 当前服务器 ID: ${context.serverId || '未知'}`;
 
+        // 构建 OpenAI 格式的消息
+        const openaiMessages = [
+            { role: 'system', content: systemPrompt },
+            ...messages
+        ];
+
         try {
-            const response = await client.messages.create({
-                model: "claude-sonnet-4-20250514",
+            const response = await client.chat.completions.create({
+                model: "deepseek-chat",
                 max_tokens: 4096,
-                system: systemPrompt,
                 tools: this.getTools(),
-                messages
+                messages: openaiMessages
             });
 
+            const message = response.choices[0].message;
+
             // 处理工具调用
-            if (response.stop_reason === 'tool_use') {
+            if (message.tool_calls && message.tool_calls.length > 0) {
                 const toolResults = [];
 
-                for (const block of response.content) {
-                    if (block.type === 'tool_use') {
-                        // 通知前端工具正在执行
-                        context.onProgress?.({
-                            type: 'tool_use',
-                            tool: block.name,
-                            input: block.input
-                        });
+                for (const toolCall of message.tool_calls) {
+                    const toolName = toolCall.function.name;
+                    const toolInput = JSON.parse(toolCall.function.arguments);
 
-                        // 执行工具
-                        const result = await this.executeTool(block.name, block.input, context);
+                    // 通知前端工具正在执行
+                    context.onProgress?.({
+                        type: 'tool_use',
+                        tool: toolName,
+                        input: toolInput
+                    });
 
-                        // 通知前端工具执行结果
-                        context.onProgress?.({
-                            type: 'tool_result',
-                            tool: block.name,
-                            result: result.success ? 'success' : 'error'
-                        });
+                    // 执行工具
+                    const result = await this.executeTool(toolName, toolInput, context);
 
-                        toolResults.push({
-                            type: 'tool_result',
-                            tool_use_id: block.id,
-                            content: JSON.stringify(result)
-                        });
-                    }
+                    // 通知前端工具执行结果
+                    context.onProgress?.({
+                        type: 'tool_result',
+                        tool: toolName,
+                        result: result.success ? 'success' : 'error'
+                    });
+
+                    toolResults.push({
+                        role: 'tool',
+                        tool_call_id: toolCall.id,
+                        content: JSON.stringify(result)
+                    });
                 }
 
                 // 继续对话，传入工具结果
                 return this.chat([
                     ...messages,
-                    { role: 'assistant', content: response.content },
-                    { role: 'user', content: toolResults }
+                    message,
+                    ...toolResults
                 ], context);
             }
 
-            return response;
+            // 转换响应格式以兼容原有前端
+            return {
+                content: [{ type: 'text', text: message.content }],
+                stop_reason: response.choices[0].finish_reason === 'stop' ? 'end_turn' : response.choices[0].finish_reason
+            };
         } catch (error) {
             console.error('AI 助手错误:', error);
             throw error;

@@ -3,7 +3,7 @@
  * Express 主服务入口
  */
 
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env'), override: true });
 
 const express = require('express');
 const cors = require('cors');
@@ -197,6 +197,339 @@ app.post('/api/servers/:id/test', async (req, res) => {
     }
 });
 
+/**
+ * 浏览远程服务器文件目录
+ */
+app.get('/api/servers/:id/files', async (req, res) => {
+    try {
+        const serverConfig = await serverConfigService.getById(req.params.id);
+        const remotePath = req.query.path || '/';
+        const deployer = createDeployer(serverConfig);
+
+        await deployer.connect();
+        const items = await deployer.listRemoteDirectory(remotePath);
+        await deployer.disconnect();
+
+        res.json({ success: true, path: remotePath, items });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 创建远程目录
+ */
+app.post('/api/servers/:id/mkdir', async (req, res) => {
+    try {
+        const serverConfig = await serverConfigService.getById(req.params.id);
+        const { path: remotePath } = req.body;
+
+        if (!remotePath) {
+            throw new Error('目录路径不能为空');
+        }
+
+        const deployer = createDeployer(serverConfig);
+        await deployer.connect();
+        await deployer.createRemoteDirectory(remotePath);
+        await deployer.disconnect();
+
+        res.json({ success: true, message: `目录已创建: ${remotePath}` });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 删除远程文件或目录
+ */
+app.delete('/api/servers/:id/files', async (req, res) => {
+    try {
+        const serverConfig = await serverConfigService.getById(req.params.id);
+        const remotePath = req.query.path;
+        const isDir = req.query.isDir === 'true';
+
+        if (!remotePath) {
+            throw new Error('路径不能为空');
+        }
+
+        const deployer = createDeployer(serverConfig);
+        await deployer.connect();
+        await deployer.deleteRemotePath(remotePath, isDir);
+        await deployer.disconnect();
+
+        res.json({ success: true, message: `已删除: ${remotePath}` });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 检测远程目录是否为项目
+ */
+app.get('/api/servers/:id/detect', async (req, res) => {
+    try {
+        const serverConfig = await serverConfigService.getById(req.params.id);
+        const remotePath = req.query.path || '/';
+        const deployer = createDeployer(serverConfig);
+
+        await deployer.connect();
+        const info = await deployer.detectProjectInfo(remotePath);
+        await deployer.disconnect();
+
+        res.json({ success: true, path: remotePath, ...info });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 部署已存在的远程项目（不需要上传）
+ */
+app.post('/api/servers/:id/deploy-existing', async (req, res) => {
+    const { deployPath, projectType, projectName, appPort, projectDomain, socketId } = req.body;
+
+    try {
+        const serverConfig = await serverConfigService.getById(req.params.id);
+        const deployer = createDeployer(serverConfig);
+
+        // 设置日志回调
+        deployer.onProgress = (log) => {
+            sendLog(socketId, log);
+        };
+
+        sendLog(socketId, { type: 'info', message: '🚀 开始部署已存在的项目...', timestamp: Date.now() });
+
+        // 显示域名配置
+        if (projectDomain) {
+            sendLog(socketId, { type: 'info', message: `🌐 使用项目域名: ${projectDomain}`, timestamp: Date.now() });
+        } else if (serverConfig.connection?.domain) {
+            sendLog(socketId, { type: 'info', message: `🌐 使用服务器域名: ${serverConfig.connection.domain}`, timestamp: Date.now() });
+        }
+
+        await deployer.connect();
+        const result = await deployer.deployExisting({
+            deployPath,
+            projectType,
+            projectName: projectName || 'my-project',
+            appPort: appPort ? parseInt(appPort) : undefined,
+            projectDomain  // 传递项目域名
+        });
+        await deployer.disconnect();
+
+        res.json({ success: true, ...result });
+    } catch (error) {
+        const errorLog = { type: 'error', message: `❌ 部署失败: ${error.message}`, timestamp: Date.now() };
+        sendLog(socketId, errorLog);
+
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 获取服务状态
+ */
+app.post('/api/servers/:id/service-status', async (req, res) => {
+    const { projectPath, projectType, projectName } = req.body;
+
+    try {
+        const serverConfig = await serverConfigService.getById(req.params.id);
+        const deployer = createDeployer(serverConfig);
+
+        await deployer.connect();
+        const status = await deployer.getServiceStatus(projectPath, projectType, projectName);
+        await deployer.disconnect();
+
+        res.json({ success: true, ...status });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 停止服务
+ */
+app.post('/api/servers/:id/service-stop', async (req, res) => {
+    const { projectPath, projectType, projectName, port, socketId } = req.body;
+
+    try {
+        const serverConfig = await serverConfigService.getById(req.params.id);
+        const deployer = createDeployer(serverConfig);
+
+        // 设置日志回调
+        deployer.onProgress = (log) => {
+            sendLog(socketId, log);
+        };
+
+        sendLog(socketId, { type: 'info', message: '🛑 开始停止服务...', timestamp: Date.now() });
+
+        await deployer.connect();
+        const result = await deployer.stopService(projectPath, projectType, projectName, port);
+        await deployer.disconnect();
+
+        res.json({ success: true, ...result });
+    } catch (error) {
+        const errorLog = { type: 'error', message: `❌ 停止服务失败: ${error.message}`, timestamp: Date.now() };
+        sendLog(socketId, errorLog);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 启动服务
+ */
+app.post('/api/servers/:id/service-start', async (req, res) => {
+    const { projectPath, projectType, projectName, port, socketId } = req.body;
+
+    try {
+        const serverConfig = await serverConfigService.getById(req.params.id);
+        const deployer = createDeployer(serverConfig);
+
+        // 设置日志回调
+        deployer.onProgress = (log) => {
+            sendLog(socketId, log);
+        };
+
+        sendLog(socketId, { type: 'info', message: '🚀 开始启动服务...', timestamp: Date.now() });
+
+        await deployer.connect();
+        const result = await deployer.startService(projectPath, projectType, projectName, port);
+        await deployer.disconnect();
+
+        res.json({ success: true, ...result });
+    } catch (error) {
+        const errorLog = { type: 'error', message: `❌ 启动服务失败: ${error.message}`, timestamp: Date.now() };
+        sendLog(socketId, errorLog);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 重启服务
+ */
+app.post('/api/servers/:id/service-restart', async (req, res) => {
+    const { projectPath, projectType, projectName, port, socketId } = req.body;
+
+    try {
+        const serverConfig = await serverConfigService.getById(req.params.id);
+        const deployer = createDeployer(serverConfig);
+
+        // 设置日志回调
+        deployer.onProgress = (log) => {
+            sendLog(socketId, log);
+        };
+
+        sendLog(socketId, { type: 'info', message: '🔄 开始重启服务...', timestamp: Date.now() });
+
+        await deployer.connect();
+        const result = await deployer.restartService(projectPath, projectType, projectName, port);
+        await deployer.disconnect();
+
+        res.json({ success: true, ...result });
+    } catch (error) {
+        const errorLog = { type: 'error', message: `❌ 重启服务失败: ${error.message}`, timestamp: Date.now() };
+        sendLog(socketId, errorLog);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * 补充上传文件到远程项目
+ * 用于修复不完整的项目
+ */
+app.post('/api/servers/:id/upload-supplement', upload.single('file'), async (req, res) => {
+    try {
+        const serverConfig = await serverConfigService.getById(req.params.id);
+        const { remotePath, socketId } = req.body;
+
+        if (!req.file) {
+            throw new Error('未上传文件');
+        }
+
+        if (!remotePath) {
+            throw new Error('未指定目标路径');
+        }
+
+        const deployer = createDeployer(serverConfig);
+
+        // 设置日志回调
+        deployer.onProgress = (log) => {
+            sendLog(socketId, log);
+        };
+
+        sendLog(socketId, { type: 'info', message: '📤 开始补充上传文件...', timestamp: Date.now() });
+
+        await deployer.connect();
+
+        // 上传 ZIP 文件到临时目录
+        const remoteZipPath = '/tmp/supplement-upload.zip';
+        sendLog(socketId, { type: 'info', message: `上传文件: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`, timestamp: Date.now() });
+
+        await deployer.sftp.put(req.file.path, remoteZipPath);
+
+        // 解压到目标路径（合并模式，不覆盖整个目录）
+        sendLog(socketId, { type: 'info', message: '📦 解压并合并文件...', timestamp: Date.now() });
+
+        const mergeScript = `
+set -e
+cd ${remotePath}
+echo "📂 目标路径: ${remotePath}"
+
+# 解压到临时目录
+TEMP_DIR="/tmp/supplement_$(date +%s)"
+mkdir -p "$TEMP_DIR"
+unzip -o ${remoteZipPath} -d "$TEMP_DIR"
+
+# 如果解压后只有一个子目录，进入该目录
+SUBDIR=$(ls -d "$TEMP_DIR"/*/ 2>/dev/null | head -1)
+if [ -n "$SUBDIR" ] && [ $(ls -d "$TEMP_DIR"/*/ 2>/dev/null | wc -l) -eq 1 ]; then
+    SRC_DIR="$SUBDIR"
+else
+    SRC_DIR="$TEMP_DIR"
+fi
+
+# 复制文件到目标路径（合并模式）
+echo "📁 合并文件到 ${remotePath}..."
+cp -r "$SRC_DIR"/* ${remotePath}/ 2>/dev/null || true
+cp -r "$SRC_DIR"/.[!.]* ${remotePath}/ 2>/dev/null || true
+
+# 清理临时文件
+rm -rf "$TEMP_DIR"
+rm -f ${remoteZipPath}
+
+echo "✅ 文件补充完成"
+ls -la ${remotePath} | head -20
+`;
+
+        await deployer.execCommand(mergeScript);
+
+        await deployer.disconnect();
+
+        // 删除本地临时文件
+        await fs.unlink(req.file.path);
+
+        sendLog(socketId, { type: 'success', message: '✅ 补充上传完成！', timestamp: Date.now() });
+
+        res.json({
+            success: true,
+            message: '文件已补充到远程项目'
+        });
+    } catch (error) {
+        const errorLog = { type: 'error', message: `❌ 补充上传失败: ${error.message}`, timestamp: Date.now() };
+        if (req.body.socketId) {
+            sendLog(req.body.socketId, errorLog);
+        }
+
+        // 清理临时文件
+        if (req.file) {
+            try {
+                await fs.unlink(req.file.path);
+            } catch (e) {}
+        }
+
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // ==================== 项目管理 API ====================
 
 /**
@@ -300,6 +633,7 @@ app.post('/api/deploy', upload.single('file'), async (req, res) => {
         projectType,
         projectName,
         appPort,
+        projectDomain,  // 项目级别的域名配置
         socketId,
         projectId: existingProjectId
     } = req.body;
@@ -344,12 +678,20 @@ app.post('/api/deploy', upload.single('file'), async (req, res) => {
         // 执行部署
         sendLog(socketId, { type: 'info', message: '🚀 开始部署...', timestamp: Date.now() });
 
+        // 调试：显示域名配置
+        if (projectDomain) {
+            sendLog(socketId, { type: 'info', message: `🌐 使用项目域名: ${projectDomain}`, timestamp: Date.now() });
+        } else if (serverConfig.connection?.domain) {
+            sendLog(socketId, { type: 'info', message: `🌐 使用服务器域名: ${serverConfig.connection.domain}`, timestamp: Date.now() });
+        }
+
         await deployer.connect();
         const result = await deployer.deploy(projectPath, {
             deployPath,
             projectType,
             projectName,
-            appPort: appPort ? parseInt(appPort) : undefined
+            appPort: appPort ? parseInt(appPort) : undefined,
+            projectDomain  // 传递项目域名
         });
         await deployer.disconnect();
 
@@ -570,10 +912,10 @@ server.listen(PORT, () => {
     console.log('');
 
     // 检查 AI 配置
-    if (!process.env.ANTHROPIC_API_KEY) {
-        console.log('⚠️  提示: 未配置 ANTHROPIC_API_KEY，AI 助手功能不可用');
+    if (!process.env.DEEPSEEK_API_KEY) {
+        console.log('⚠️  提示: 未配置 DEEPSEEK_API_KEY，AI 助手功能不可用');
     } else {
-        console.log('✅ AI 助手已启用');
+        console.log('✅ AI 助手已启用 (DeepSeek)');
     }
     console.log('');
 });

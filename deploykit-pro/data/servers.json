@@ -1,3 +1,19 @@
 {
-    "servers": []
+  "servers": [
+    {
+      "id": "53abd5ff-a73f-4eb5-bd3c-d7137b0878cd",
+      "name": "方总",
+      "type": "linux",
+      "connection": {
+        "host": "106.55.166.12",
+        "port": 22,
+        "username": "root",
+        "authType": "password",
+        "password": "YWRtaW5ATGlua3NlYS5jb20jMjAyNQ=="
+      },
+      "defaults": {},
+      "createdAt": "2026-01-03T04:55:34.533Z",
+      "updatedAt": "2026-01-03T05:47:04.853Z"
+    }
+  ]
 }
